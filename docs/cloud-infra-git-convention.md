@@ -126,6 +126,58 @@ PR
 main
 ```
 
+### 작업 Branch 생성 방법
+
+Repository를 최초 Clone한 후 일반 작업은 `develop`을 기준으로 작업 Branch를 생성한다.
+
+최초 Clone 시:
+
+```bash
+git clone <repository-url>
+cd MoongCheap-Cloud
+
+git checkout develop
+git pull origin develop
+```
+
+이후 새로운 작업을 시작할 때는 항상 로컬 `develop`을 최신 상태로 갱신한 후 작업 Branch를 생성한다.
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b <type>/<작업-내용>
+```
+
+예:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feat/terraform-vpc
+```
+
+작업 완료 후 변경사항을 Commit하고 작업 Branch를 원격 Repository에 Push한다.
+
+```bash
+git add .
+git commit -m "feat(vpc): add vpc infrastructure"
+git push -u origin feat/terraform-vpc
+```
+
+이후 GitHub에서 작업 Branch를 `develop`으로 Merge하는 Pull Request를 생성한다.
+
+```text
+feat/terraform-vpc
+        ↓
+Pull Request
+        ↓
+담당 영역 Review
+        ↓
+develop
+```
+
+`main` 또는 `develop`에서 직접 작업하거나 직접 Push하지 않는다.
+
 ### 3.4 hotfix
 
 현재 `main` 기준으로 배포된 환경에서 즉시 수정해야 하는 문제가 발생했을
