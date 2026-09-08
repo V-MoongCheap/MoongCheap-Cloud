@@ -1,0 +1,15 @@
+name: frontend
+
+image:
+  repository: image.registry
+  tag: git.sha
+
+containerPort: 3000
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+
+# nodeSelector:
+#   workload: frontend
