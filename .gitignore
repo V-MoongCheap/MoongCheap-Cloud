@@ -4,6 +4,13 @@
 # .tfstate files
 *.tfstate
 *.tfstate.*
+# bootstrap state는 예외적으로 버전 관리한다.
+# state 버킷 자체를 만드는 코드라 원격 backend를 쓸 수 없고,
+# 이 state 파일이 없으면 다른 팀원이 bootstrap을 이어받을 수 없다.
+!terraform/bootstrap/terraform.tfstate
+
+# 개인 테스트 환경 (개인 AWS 계정 검증용, 팀 배포 환경 아님)
+terraform/envs/personal-test/
 
 # Crash log files
 crash.log
