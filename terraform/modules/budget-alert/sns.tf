@@ -35,7 +35,7 @@ data "aws_iam_policy_document" "budget_alert_topic_policy" {
     condition {
       test     = "ArnLike"
       variable = "aws:SourceArn"
-      values   = [aws_budgets_budget.this.arn]
+      values   = [aws_budgets_budget.monthly_cost.arn]
     }
   }
 }
