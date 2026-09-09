@@ -13,8 +13,14 @@ resource "aws_eks_cluster" "this" {
   # 명시하지 않으면 클러스터가 CONFIG_MAP 모드로 생성되는데, 그 모드에서는
   # access.tf의 aws_eks_access_entry(팀원 권한 부여)가 아예 동작하지 않는다.
   # Access Entry를 쓰려면 API 또는 API_AND_CONFIG_MAP 이어야 한다.
+  #
+  # bootstrap_cluster_creator_admin_permissions는 access_config 블록을 명시하는 순간
+  # true로 자동 적용되지 않는다 (블록 없이 생성할 때만 AWS가 알아서 켜준다). 그래서 여기서
+  # 명시적으로 켜지 않으면 terraform apply를 실행한 본인조차 클러스터 admin 권한이 없어서
+  # kubectl이 "must be logged in to the server"로 거부당한다
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   tags = {

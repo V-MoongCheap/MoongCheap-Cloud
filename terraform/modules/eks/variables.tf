@@ -6,7 +6,7 @@ variable "project" {
 
 variable "env" {
   type        = string
-  description = "환경 구분 (dev/prod)"
+  description = "환경 구분 (develop/prod)"
 }
 
 variable "cluster_role_arn" {
@@ -46,4 +46,10 @@ variable "cluster_admin_usernames" {
   type        = list(string)
   description = "클러스터 admin 권한을 받을 IAM 사용자 이름 목록"
   default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-ys"]
+}
+
+variable "node_desired_size" {
+  type        = number
+  description = "각 Node Group의 desired size (기본 1). 작은 인스턴스에서 Pod 여유 공간을 늘려 테스트할 때만 올린다."
+  default     = 1
 }

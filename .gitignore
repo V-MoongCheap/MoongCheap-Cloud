@@ -12,6 +12,10 @@
 # 개인 테스트 환경 (개인 AWS 계정 검증용, 팀 배포 환경 아님)
 terraform/envs/personal-test/
 
+# archive_file data source가 apply/plan 시마다 생성하는 Lambda 배포 패키지.
+# 소스(.py)만 버전관리하면 되고, 빌드 산출물인 zip은 매번 재생성되므로 커밋 대상 아님.
+*.zip
+
 # Crash log files
 crash.log
 crash.*.log

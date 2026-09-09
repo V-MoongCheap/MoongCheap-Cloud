@@ -37,7 +37,7 @@ resource "aws_ecr_lifecycle_policy" "this" {
         description  = "tagged 이미지는 최근 10개만 유지"
         selection = {
           tagStatus     = "tagged"
-          tagPrefixList = ["dev", "prod"]
+          tagPrefixList = ["develop", "prod"]
           countType     = "imageCountMoreThan"
           countNumber   = 10
         }
