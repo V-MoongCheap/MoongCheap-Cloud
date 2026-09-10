@@ -454,8 +454,9 @@ be-hpa
 ai-hpa
 ```
 
-환경은 Namespace / Helm Values / Release에서 구분하므로 Kubernetes
-Object Name에 중복해서 넣지 않는다.
+환경은 Helm Release Name(`{service}-{env}`)과 Values File로 구분하며,
+Namespace는 환경별로 분리하지 않는다(8.1절 현재 배포 제약 참고). 따라서
+Kubernetes Object Name에도 환경 식별자를 중복해서 넣지 않는다.
 
 ### 5.4 ServiceAccount
 
@@ -611,6 +612,27 @@ Helm      → values-develop.yaml
 ArgoCD    → argocd/develop
 Image     → develop-{git-short-sha}
 ```
+
+### 8.1 현재 배포 제약 (develop 단일 환경 운영)
+
+비용 문제로 인해 `develop`/`prod`를 동시에 운영하기 어려운 상황이므로,
+**당분간 AWS EKS Cluster에는 develop 환경만 배포**한다.
+
+-   FE / BE / AI / Infra 모든 서비스는 `develop` Branch 기준 소스
+    코드를 AWS 인프라에 반영한다.
+-   ArgoCD는 `argocd/develop`만 활성화(Auto Sync)하며,
+    `argocd/prod`는 Sync 대상에서 제외한다.
+-   `argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
+    않고 **향후 prod 환경 도입을 위한 비활성 템플릿**으로 유지한다.
+-   위 제약으로 5.1절 Namespace(`fe`/`be`/`ai`/`infra`)는 환경 식별자를
+    포함하지 않는다. develop 환경만 배포되는 동안에는 고정 Namespace
+    기준 Kubernetes Object Name(`fe-deployment`, `be-service`,
+    `ai-hpa` 등)이 서로 충돌하지 않는다.
+-   추후 prod 환경을 **동일 EKS Cluster에 추가로 배포**하게 되면, 그
+    시점에 Namespace(예: `fe-develop` / `fe-prod`) 또는 Kubernetes
+    Object Name에 환경 식별자를 추가하도록 5.1~5.3절 Naming 규칙을
+    함께 개정하고, ArgoCD Application의 `destination.namespace`도 이에
+    맞춰 갱신한다.
 
 ------------------------------------------------------------------------
 
