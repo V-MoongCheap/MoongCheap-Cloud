@@ -6,7 +6,7 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 
 ## 2. 전체 아키텍처
 
-[image.png](attachment:66554433-9d3f-46b2-8a57-35fdbb68f689\:image.png)
+![클라우드 인프라 아키텍처](./cloud-infra-architecture/architecture_v2.png)
 
 ### 구성 요소
 
@@ -1189,7 +1189,9 @@ terraform/
 │  ├─ s3/
 │  ├─ secrets/
 │  ├─ elasticache/
-│  └─ opensearch/
+│  ├─ opensearch/
+│  ├─ cloudflare/
+│  └─ budget-alert/
 │
 └─ envs/
    ├─ develop/
