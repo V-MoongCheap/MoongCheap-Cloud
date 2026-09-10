@@ -792,7 +792,8 @@ ArgoCD Application(`gitops/argocd/{env}/observability.yaml`)은 위 경로
 ``` text
 docs/
 ├── cloud-infra-architecture/
-│   └── architecture_v1.png
+│   ├── architecture_v1.png
+│   └── architecture_v2.png
 ├── cloud_infra_architecture.md
 ├── cloud-infra-git-convention.md
 ├── cost-estimation.md
@@ -810,7 +811,7 @@ docs/
 예:
 
 ``` markdown
-![클라우드 인프라 아키텍처](./cloud-infra-architecture/architecture_v1.png)
+![클라우드 인프라 아키텍처](./cloud-infra-architecture/architecture_v2.png)
 ```
 
 ------------------------------------------------------------------------
