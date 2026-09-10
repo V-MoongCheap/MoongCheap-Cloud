@@ -40,10 +40,7 @@ CI/CD 관련 구성은 모두 `gitops/` 아래에서 관리한다.
 | Directory | 역할 | 담당 |
 | --- | --- | --- |
 | `terraform/` | AWS / KT Cloud IaC 및 Terraform 관리 | 최상우 / 양재혁 |
-| `gitops/helm/` | Application 및 Infrastructure Component Helm Chart | 윤성 / 김준우 |
-| `gitops/argocd/` | ArgoCD Application 정의 | 윤성 / 김준우 |
-| `gitops/jenkins/` | Jenkins Pipeline 정의 | 윤성 / 김준우 |
-| `gitops/helm/infra/observability/` | Prometheus / Grafana / Loki / Alloy | 학성 / 양재혁 |
+| `gitops/` | Helm Chart, ArgoCD Application, Jenkins Pipeline, Observability 등 Kubernetes / CI/CD 구성 전체 | 윤성 / 김준우 / 부학성 |
 | `docs/` | Cloud Infra 설계 및 운영 문서 | 공통 |
 
 Observability는 Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도 최상위
@@ -402,8 +399,7 @@ helm template
 | 변경 영역 | 담당 | Review 원칙 |
 | --- | --- | --- |
 | `terraform/**` | 최상우 / 양재혁 | 상호 Review |
-| `gitops/helm/infra/observability/**` | 학성 / 양재혁 | 상호 Review |
-| `gitops/**` (Observability 외) | 윤성 / 김준우 | 상호 Review |
+| `gitops/**` | 윤성 / 김준우 / 부학성 | 상호 Review |
 
 예를 들어:
 
@@ -521,12 +517,11 @@ Team을 구성하고 Required Reviewer 정책을 적용한다.
 
 ### 10.1 Reviewer Team 구성
 
-  GitHub Team                 구성원            담당 영역
-  --------------------------- ----------------- --------------------
-  `terraform-reviewers`       최상우 / 양재혁   `terraform/**`
-  `gitops-reviewers`          윤성 / 김준우     `gitops/**`
-  `observability-reviewers`   학성 / 양재혁     `gitops/helm/infra/observability/**`
-  `main-reviewers`            양재혁            `main` 최종 승인
+| GitHub Team | 구성원 | 담당 영역 |
+| --- | --- | --- |
+| `terraform-reviewers` | 최상우 / 양재혁 | `terraform/**` |
+| `gitops-reviewers` | 윤성 / 김준우 / 부학성 | `gitops/**` |
+| `main-reviewers` | 양재혁 | `main` 최종 승인 |
 
 각 Team에는 Repository Review에 필요한 권한을 부여한다.
 
@@ -542,18 +537,10 @@ terraform/**
 → terraform-reviewers
 → Required Approval: 1
 
-gitops/helm/infra/observability/**
-→ observability-reviewers
-→ Required Approval: 1
-
 gitops/**
 → gitops-reviewers
 → Required Approval: 1
 ```
-
-경로 규칙은 **더 구체적인 경로를 먼저 평가**한다. Observability 경로가
-`gitops/**`에 포함되므로, 해당 경로만 변경한 PR은 observability-reviewers의
-승인을 받는다.
 
 목표 Review 구조:
 
@@ -562,13 +549,9 @@ terraform/**
 최상우 작업 → 양재혁 Review
 양재혁 작업 → 최상우 Review
 
-gitops/** (Observability 외)
-윤성 작업 → 김준우 Review
-김준우 작업 → 윤성 Review
-
-gitops/helm/infra/observability/**
-학성 작업 → 양재혁 Review
-양재혁 작업 → 학성 Review
+gitops/**
+윤성 / 김준우 / 부학성 중
+작업자 외 1명 Review
 ```
 
 `develop` Ruleset은 다음 정책을 기준으로 한다.
@@ -651,7 +634,6 @@ Organization 이전 이후 필요한 경우 `.github/CODEOWNERS`를 사용할 �
 ``` text
 /terraform/                            @organization/terraform-reviewers
 /gitops/                               @organization/gitops-reviewers
-/gitops/helm/infra/observability/      @organization/observability-reviewers
 ```
 
 CODEOWNERS 파일은 `main`, `develop`에서 서로 다른 내용으로 관리하지 않고
@@ -931,18 +913,17 @@ develop 동기화
 1.  `main`, `develop` 직접 Push 금지
 2.  일반 작업은 `develop`에서 분기
 3.  `terraform/**`은 최상우 ↔ 양재혁 상호 Review
-4.  `gitops/**`(Observability 외)는 윤성 ↔ 김준우 상호 Review
-5.  `gitops/helm/infra/observability/**`는 학성 ↔ 양재혁 상호 Review
-6.  `develop → main`은 양재혁 최종 Review
-7.  긴급 수정은 `main → hotfix/*`
-8.  Hotfix 완료 후 반드시 `develop` 동기화
-9.  하나의 Branch에는 하나의 작업 목적
-10. 작은 PR 지향
-11. Secret Commit 금지
-12. 변경 이유와 영향 범위를 PR에 기록
-13. 코드와 관련 문서를 함께 최신화
-14. CI/CD 구축 이후 Status Check를 Merge 조건에 추가
-15. Organization 이전 후 담당 영역별 Required Reviewer 정책을 적용하여
+4.  `gitops/**`는 윤성 / 김준우 / 부학성 상호 Review
+5.  `develop → main`은 양재혁 최종 Review
+6.  긴급 수정은 `main → hotfix/*`
+7.  Hotfix 완료 후 반드시 `develop` 동기화
+8.  하나의 Branch에는 하나의 작업 목적
+9.  작은 PR 지향
+10. Secret Commit 금지
+11. 변경 이유와 영향 범위를 PR에 기록
+12. 코드와 관련 문서를 함께 최신화
+13. CI/CD 구축 이후 Status Check를 Merge 조건에 추가
+14. Organization 이전 후 담당 영역별 Required Reviewer 정책을 적용하여
     Review 규칙을 GitHub에서 강제
 
 > **작업 Branch에서 변경하고 담당 영역별 Review를 거쳐 `develop`에
