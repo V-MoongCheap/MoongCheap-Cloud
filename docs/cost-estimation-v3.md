@@ -29,31 +29,31 @@
 
 <https://calculator.aws/#/estimate?id=10feea9c2d726a1f13e82efdfb9d95ceee3a9244>
 
-  서비스 구성/용도 월 비용                                
-  -------------------------- ---------------------------- --------------
-  EKS                        Kubernetes Control Plane     \$73.00
-  EC2                        NAT Instance                 \$8.54
-  EIP                        NAT Instance                 \$3.65
-  S3                         Object Storage               \$8.35
-  ECR                        Container Image 100GB        \$10.00
-  Secrets Manager            Secret 관리                  \$2.05
-  RDS PostgreSQL             PostgreSQL + pgvector        \$161.29
-  EC2                        FE `t3.small ×1`             \$41.61
-  EC2                        BE/WAS `t3.large ×4`         \$310.98
-  OpenSearch                 검색, `t3.small.search ×1`   \$42.27
-  ElastiCache                Redis Cache                  \$68.62
-  **합계**                                                **\$730.36**
+| 서비스 | 구성/용도 | 월 비용 |
+| --- | --- | --- |
+| EKS | Kubernetes Control Plane | \$73.00 |
+| EC2 | NAT Instance | \$8.54 |
+| EIP | NAT Instance | \$3.65 |
+| S3 | Object Storage | \$8.35 |
+| ECR | Container Image 100GB | \$10.00 |
+| Secrets Manager | Secret 관리 | \$2.05 |
+| RDS PostgreSQL | PostgreSQL + pgvector | \$161.29 |
+| EC2 | FE `t3.small ×2` | \$41.61 |
+| EC2 | BE/WAS `t3.large ×4` | \$310.98 |
+| OpenSearch | 검색, `t3.small.search ×1` | \$42.27 |
+| ElastiCache | Redis Cache | \$68.62 |
+| **합계** |  | **\$730.36** |
 
 단, 이는 프로젝트 기간 동안 리소스를 24시간 상시 운영하는 비용이 아니다.
 
 ### 2.1 산정 기준
 
-  구분 운영 기준         
-  ---------------------- -----------------------------
-  프로젝트 운영 기간     **23일**
-  FE/BE/NAT Compute      **16시간 × 23일 = 368시간**
-  EKS 및 관리형 서비스   **24시간 × 23일 = 552시간**
-  Stateful Storage       **23일간 유지**
+| 구분 | 운영 기준 |
+| --- | --- |
+| 프로젝트 운영 기간 | **23일** |
+| FE/BE/NAT Compute | **16시간 × 23일 = 368시간** |
+| EKS 및 관리형 서비스 | **24시간 × 23일 = 552시간** |
+| Stateful Storage | **23일간 유지** |
 
 FE/BE Worker는 비작업 시간에 Scale-to-zero하여 EC2 Compute 비용을
 절감한다.
@@ -66,45 +66,24 @@ FE/BE Worker는 비작업 시간에 Scale-to-zero하여 EC2 Compute 비용을
 
 ### 2.2 서비스별 예상 비용
 
-  ---------------------------------------------------------------------------
-  리소스 월간 비용 실제 운영 기준 예상                         
-  비용                                                         
-  -------------------------------------- ---------- ---------- --------------
-  FE EC2 Compute                         \$37.96    368h       **\$19.14**
-
-  FE EBS                                 \$3.65     552h       **\$2.76**
-
-  BE/WAS EC2 Compute                     \$303.68   368h       **\$153.09**
-
-  BE EBS                                 \$7.30     552h       **\$5.52**
-
-  NAT Instance                           \$8.54     368h       **\$4.31**
-
-  NAT Instance EIP                       \$3.65     368h       **\$1.84**
-
-  EKS Control Plane                      \$73.00    552h       **\$55.20**
-
-  RDS Instance                           \$148.19   552h       **\$112.06**
-
-  RDS Storage 50GB                       \$13.10    552h       **\$9.91**
-
-  ElastiCache (`cache.t4g.small ×2`)     \$68.62    552h       **\$51.89**
-
-  OpenSearch Instance                    \$40.88    552h       **\$30.91**
-
-  OpenSearch Storage                     \$1.39     552h       **\$1.05**
-
-  S3                                     \$8.35     23일 기준  **\$6.31**
-                                                    추정       
-
-  ECR                                    \$10.00    23일 기준  **\$7.56**
-                                                    추정       
-
-  Secrets Manager                        \$2.05     552h 기준  **\$1.55**
-
-  **예상 합계**                                                **약
-                                                               \$463.09**
-  ---------------------------------------------------------------------------
+| 리소스 | 월간 비용 | 실제 운영 기준 | 예상 비용 |
+| --- | --- | --- | --- |
+| FE EC2 Compute | \$37.96 | 368h | **\$19.14** |
+| FE EBS | \$3.65 | 552h | **\$2.76** |
+| BE/WAS EC2 Compute | \$303.68 | 368h | **\$153.09** |
+| BE EBS | \$7.30 | 552h | **\$5.52** |
+| NAT Instance | \$8.54 | 368h | **\$4.31** |
+| NAT Instance EIP | \$3.65 | 368h | **\$1.84** |
+| EKS Control Plane | \$73.00 | 552h | **\$55.20** |
+| RDS Instance | \$148.19 | 552h | **\$112.06** |
+| RDS Storage 50GB | \$13.10 | 552h | **\$9.91** |
+| ElastiCache (`cache.t4g.small ×2`) | \$68.62 | 552h | **\$51.89** |
+| OpenSearch Instance | \$40.88 | 552h | **\$30.91** |
+| OpenSearch Storage | \$1.39 | 552h | **\$1.05** |
+| S3 | \$8.35 | 23일 기준 추정 | **\$6.31** |
+| ECR | \$10.00 | 23일 기준 추정 | **\$7.56** |
+| Secrets Manager | \$2.05 | 552h 기준 | **\$1.55** |
+| **예상 합계** |  |  | **약 \$463.09** |
 
 > S3/ECR은 실제 저장량 및 요청량에 따라 달라지므로 23일 운영을 가정한
 > 예상값으로 사용한다.
@@ -113,12 +92,12 @@ FE/BE Worker는 비작업 시간에 Scale-to-zero하여 EC2 Compute 비용을
 
 ### 2.3 예산 대비 예상 사용량
 
-  항목 금액            
-  -------------------- --------------
-  AWS 총 가용 예산     **\$552.00**
-  프로젝트 예상 비용   **\$463.09**
-  **예상 잔여 예산**   **\$90.75**
-  예상 예산 사용률     **약 83.6%**
+| 항목 | 금액 |
+| --- | --- |
+| AWS 총 가용 예산 | **\$552.00** |
+| 프로젝트 예상 비용 | **\$463.09** |
+| **예상 잔여 예산** | **\$90.75** |
+| 예상 예산 사용률 | **약 83.6%** |
 
 현재 구성과 운영시간을 준수할 경우 **약 \$90의 비용 Buffer**를 확보할 수
 있을 것으로 예상한다.
@@ -190,13 +169,13 @@ NodeGroup은 **`t3.large(2 vCPU / 8 GiB)`를 기본 Worker 규격으로
 
 월 비용 `$730.36` 전체에 `368/720`을 적용하면 안 된다.
 
-  구분 비용 처리            
-  ------------------------- ----------------------------------
-  FE/BE EC2, NAT Instance   실제 실행시간에 따라 감소
-  EKS                       Cluster 유지시간 기준
-  RDS                       실제 운영 방식 기준
-  ElastiCache/OpenSearch    Domain/Cluster 유지 중 지속 과금
-  S3/ECR/EBS/Secrets        저장·보유 기간 동안 과금
+| 구분 | 비용 처리 |
+| --- | --- |
+| FE/BE EC2, NAT Instance | 실제 실행시간에 따라 감소 |
+| EKS | Cluster 유지시간 기준 |
+| RDS | 실제 운영 방식 기준 |
+| ElastiCache/OpenSearch | Domain/Cluster 유지 중 지속 과금 |
+| S3/ECR/EBS/Secrets | 저장·보유 기간 동안 과금 |
 
 따라서 `$730.36 × 368/720`은 실제 프로젝트 비용이 아니며, **서비스별
 과금 특성을 분리해서 최종 비용을 계산**한다.
@@ -278,15 +257,15 @@ Instance를 2개 이상 배치하여 Kubernetes에서 워크로드를 분산**�
 
 FE팀에서 현재 애플리케이션을 분석한 결과:
 
-  항목 확인 결과               
-  ---------------------------- ---------------------------
-  전체 Route                   **16개**
-  정적 Route                   **14개**
-  기존 예상 FE Pod             약 **0.5 vCPU / 1GiB**
-  `public/images`              **104개 / 약 41MB**
-  최대 문제 이미지             **850 × 32,768 / 11.9MB**
-  해당 이미지 처리 시 Memory   약 **110MB**
-  이미지 최적화 후             **약 41MB → 2MB**
+| 항목 | 확인 결과 |
+| --- | --- |
+| 전체 Route | **16개** |
+| 정적 Route | **14개** |
+| 기존 예상 FE Pod | 약 **0.5 vCPU / 1GiB** |
+| `public/images` | **104개 / 약 41MB** |
+| 최대 문제 이미지 | **850 × 32,768 / 11.9MB** |
+| 해당 이미지 처리 시 Memory | 약 **110MB** |
+| 이미지 최적화 후 | **약 41MB → 2MB** |
 
 기존에는 Next.js Runtime 이미지 최적화 과정에서 CPU/Memory 사용량 증가
 가능성이 있었지만, **이미지를 사전에 Resize/WebP 변환**하기로 하면서 FE
@@ -350,29 +329,23 @@ GPU Node를 제거하면서 AI 워크로드까지 CPU Worker로 들어오기 때
 
 ### 후보 비교
 
-  항목 기준         
-  ----------------- ---------------------------
-  기본 Worker       `t3.large`
-  Node당 Resource   2 vCPU / 8 GiB
-  운영 방식         Auto Scaling
-  평시              필요한 최소 Node 유지
-  부하 증가         추가 `t3.large` Scale-Out
-  정기 작업         필요 시 사전 Scale-Out
-  작업 종료         유휴 Node Scale-In
-  비용 산정 기준    최대 `t3.large ×4` 기준
+| 항목 | 기준 |
+| --- | --- |
+| 기본 Worker | `t3.large` |
+| Node당 Resource | 2 vCPU / 8 GiB |
+| 운영 방식 | Auto Scaling |
+| 평시 | 필요한 최소 Node 유지 |
+| 부하 증가 | 추가 `t3.large` Scale-Out |
+| 정기 작업 | 필요 시 사전 Scale-Out |
+| 작업 종료 | 유휴 Node Scale-In |
+| 비용 산정 기준 | 최대 `t3.large ×4` 기준 |
 
-  ------------------------------------------------------------------------
-  구성 총 vCPU 총 Memory 판단                      
-  ---------------------------- ------- ----------- -----------------------
-  `t3.medium ×4`               8       16GiB       Memory 부족 가능성
-
-  `t3.large ×3`                6       24GiB       CPU 여유 부족 가능성
-
-  **`t3.large ×4`**            **8**   **32GiB**   **선정**
-
-  `t3.xlarge ×2`               8       32GiB       총량은 동일하나 Node 수
-                                                   감소
-  ------------------------------------------------------------------------
+| 구성 | 총 vCPU | 총 Memory | 판단 |
+| --- | --- | --- | --- |
+| `t3.medium ×4` | 8 | 16GiB | Memory 부족 가능성 |
+| `t3.large ×3` | 6 | 24GiB | CPU 여유 부족 가능성 |
+| **`t3.large ×4`** | **8** | **32GiB** | **선정** |
+| `t3.xlarge ×2` | 8 | 32GiB | 총량은 동일하나 Node 수 감소 |
 
 여기서 `t3.large ×4`와 `t3.xlarge ×2`는 총량만 보면 똑같다.
 
@@ -471,11 +444,11 @@ NAT는 성능 요구보다 **NAT Gateway 비용 절감**이 선정 이유가 명
 
 기존 계산:
 
-  구성 비용                  
-  -------------------------- -------------------------
-  NAT Gateway                약 **\$178.18/month**
-  `t3a.micro` NAT Instance   약 **\$8.54/month**
-  차이                       **약 \$170/month 절감**
+| 구성 | 비용 |
+| --- | --- |
+| NAT Gateway | 약 **\$178.18/month** |
+| `t3a.micro` NAT Instance | 약 **\$8.54/month** |
+| 차이 | **약 \$170/month 절감** |
 
 실제 16시간 × 23일 기준 NAT Instance Compute 비용은 기존 계산에서 약
 **\$4.31** 수준이었다. (EIP +\$1.84)
@@ -548,28 +521,13 @@ Redis가 실제로 필요한지는 BE의 Session/Cache 요구사항에 따라 �
 
 ## 8. 최종 선정 요약
 
-  ---------------------------------------------------------------------------
-  리소스 선정 스펙                         
-  핵심 선정 근거                           
-  ----------------- ---------------------- ----------------------------------
-  **FE Worker**     `t3.small ×2`          14/16 정적 Route + 이미지 41→2MB
-                                           최적화 + Node 분산
-
-  **BE/WAS Worker** `t3.large ×N`          **8 vCPU / 32GiB**, 작은 Node 분산
-                                           및 AI/System Pod 수용
-
-  **RDS**           PostgreSQL /           핵심 Stateful 리소스 안정성 +
-                    **Multi-AZ / 50GB**    pgvector 통합
-
-  **NAT**           `t3a.micro ×1`         NAT GW 대비 월 약 **\$170 절감**
-
-  **OpenSearch**    `t3.small.search ×1`   개발용 최소 구성, **\$7,209 →
-                                           \$42.27**
-
-  **ElastiCache**   Node-based Redis       Serverless **\$127.86**보다 비용
-                                           절감
-
-  **S3**            S3 Standard            Object Storage를 Compute와 분리
-
-  **ECR**           100GB                  FE/BE/AI Container Image 저장
-  ---------------------------------------------------------------------------
+| 리소스 | 선정 스펙 | 핵심 선정 근거 |
+| --- | --- | --- |
+| **FE Worker** | `t3.small ×2` | 14/16 정적 Route + 이미지 41→2MB 최적화 + Node 분산 |
+| **BE/WAS Worker** | `t3.large ×N` | **8 vCPU / 32GiB**, 작은 Node 분산 및 AI/System Pod 수용 |
+| **RDS** | PostgreSQL / **Multi-AZ / 50GB** | 핵심 Stateful 리소스 안정성 + pgvector 통합 |
+| **NAT** | `t3a.micro ×1` | NAT GW 대비 월 약 **\$170 절감** |
+| **OpenSearch** | `t3.small.search ×1` | 개발용 최소 구성, **\$7,209 → \$42.27** |
+| **ElastiCache** | Node-based Redis | Serverless **\$127.86**보다 비용 절감 |
+| **S3** | S3 Standard | Object Storage를 Compute와 분리 |
+| **ECR** | 100GB | FE/BE/AI Container Image 저장 |
