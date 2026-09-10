@@ -33,9 +33,11 @@ MoongCheap-Cloud/
 └── README.md
 ```
 
-최상위 Directory는 **`terraform/`(AWS 인프라 프로비저닝)** 과
-**`gitops/`(Kubernetes 배포 및 CI/CD)** 두 개로 유지하고, Kubernetes와
-CI/CD 관련 구성은 모두 `gitops/` 아래에서 관리한다.
+최상위 Directory는 `terraform/`, `gitops/`, `docs/` 세 개로 구성하며, 이
+중 인프라 코드를 담는 Directory는 **`terraform/`(AWS 인프라
+프로비저닝)** 과 **`gitops/`(Kubernetes 배포 및 CI/CD)** 두 개로
+유지한다. Kubernetes와 CI/CD 관련 구성은 모두 `gitops/` 아래에서
+관리한다.
 
 | Directory | 역할 | 담당 |
 | --- | --- | --- |
@@ -395,7 +397,6 @@ helm template
 
 변경 영역에 따라 담당자가 서로 Review한다.
 
-  변경 영역            담당              Review 원칙
 | 변경 영역 | 담당 | Review 원칙 |
 | --- | --- | --- |
 | `terraform/**` | 최상우 / 양재혁 | 상호 Review |
