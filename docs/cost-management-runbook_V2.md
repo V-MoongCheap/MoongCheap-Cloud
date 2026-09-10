@@ -270,10 +270,10 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 
 | 규칙 | 내용 |
 | --- | --- |
-| 생성/삭제 방식 | Terraform `apply/destroy`는 인프라팀만 수행 |
+| 생성/삭제 방식 | PR로 승인된 Open / Close 대상에 대해서만 Terraform `apply/destroy` 수행 (인프라팀만 수행). **전체 Resource 일괄 `destroy` 금지** |
 | 스펙 변경 | 실제 CPU/Memory/Latency Metric 확인 후 변경 |
 | 고비용 서비스 추가 | 비용 증가분 계산 후 팀 협의 |
-| Stateful 보호 | **RDS, S3, EBS, ElastiCache, OpenSearch 등은 일반 Compute Destroy와 분리** |
+| Stateful/관리 리소스 보호 | **RDS, S3, EBS/PVC, ElastiCache, OpenSearch, Terraform State S3, KT Cloud Backup Storage, IAM, Secrets Manager는 일반 Compute Close/Destroy 대상에서 제외** |
 | 일시적 Scale-up | 테스트 종료 후 기존 Baseline으로 원복 |
 | 도메인 갱신 | 프로젝트 종료 후 자동 갱신 여부 확인 |
 
