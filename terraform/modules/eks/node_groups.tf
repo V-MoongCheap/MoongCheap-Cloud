@@ -9,7 +9,7 @@ resource "aws_eks_node_group" "fe" {
   instance_types  = [var.fe_instance_type]
 
   scaling_config {
-    desired_size = 1
+    desired_size = var.node_desired_size
     min_size     = 1
     max_size     = 2
   }
@@ -27,7 +27,7 @@ resource "aws_eks_node_group" "be" {
   instance_types  = [var.be_instance_type]
 
   scaling_config {
-    desired_size = 1
+    desired_size = var.node_desired_size
     min_size     = 1
     max_size     = 2
   }
@@ -45,7 +45,7 @@ resource "aws_eks_node_group" "ai_cpu" {
   instance_types  = [var.ai_cpu_instance_type]
 
   scaling_config {
-    desired_size = 1
+    desired_size = var.node_desired_size
     min_size     = 1
     max_size     = 2
   }

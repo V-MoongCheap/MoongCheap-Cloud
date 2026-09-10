@@ -1,7 +1,7 @@
 module "vpc" {
   source = "../../modules/vpc"
 
-  env = "dev"
+  env = "develop"
 }
 
 module "ecr" {
@@ -11,13 +11,13 @@ module "ecr" {
 module "iam" {
   source = "../../modules/iam"
 
-  env = "dev"
+  env = "develop"
 }
 
 module "eks" {
   source = "../../modules/eks"
 
-  env              = "dev"
+  env              = "develop"
   cluster_role_arn = module.iam.cluster_role_arn
   node_role_arn    = module.iam.node_role_arn
   subnet_ids       = module.vpc.private_subnet_ids
@@ -26,4 +26,18 @@ module "eks" {
   # 붙어있어야 클러스터 생성이 성공한다. output 값만으로는 이 순서가 보장되지 않아
   # module.iam 전체(정책 attachment 포함)가 끝난 뒤에 실행되도록 명시적으로 의존성을 건다.
   depends_on = [module.iam]
+}
+
+module "cloudflare" {
+  source = "../../modules/cloudflare"
+
+  account_id = var.cloudflare_account_id
+  zone_id    = var.cloudflare_zone_id
+  subdomain  = var.cloudflare_subdomain
+}
+
+module "budget_alert" {
+  source = "../../modules/budget-alert"
+
+  discord_webhook_url = data.aws_secretsmanager_secret_version.discord_webhook.secret_string
 }

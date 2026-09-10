@@ -6,5 +6,5 @@ variable "project" {
 
 variable "env" {
   type        = string
-  description = "환경 구분 (dev/prod)"
+  description = "환경 구분 (develop/prod)"
 }

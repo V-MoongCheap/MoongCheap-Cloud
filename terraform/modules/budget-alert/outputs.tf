@@ -6,6 +6,10 @@ output "lambda_function_name" {
   value = aws_lambda_function.budget_to_discord.function_name
 }
 
+output "budget_arn" {
+  value = aws_budgets_budget.monthly_cost.arn
+}
+
 output "budget_name" {
   value = aws_budgets_budget.monthly_cost.name
 }
