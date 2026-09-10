@@ -222,12 +222,12 @@ moongcheap/ai:prod-123abcd
 
 ### 3.6 RDS
 
-  Resource             Naming
-  -------------------- ------------------------------------
-  RDS Instance         `moongcheap-{env}-postgres`
-  DB Subnet Group      `moongcheap-{env}-db-subnet-group`
-  RDS Security Group   `moongcheap-{env}-rds-sg`
-  DB Secret            `moongcheap-{env}-db-secret`
+| Resource | Naming |
+| --- | --- |
+| RDS Instance | `moongcheap-{env}-postgres` |
+| DB Subnet Group | `moongcheap-{env}-db-subnet-group` |
+| RDS Security Group | `moongcheap-{env}-rds-sg` |
+| DB Secret | `moongcheap-{env}-db-secret` |
 
 현재 Architecture 기준 RDS Spec:
 
@@ -672,6 +672,15 @@ Secret Store는 **AWS Secrets Manager**를 사용한다.
 
 Secret Naming:
 
+DB Secret은 3.6절 RDS 규약을 따라 다음 이름 하나로 통일하며, BE·AI Pod는
+모두 이 Secret을 조회한다.
+
+``` text
+moongcheap-{env}-db-secret
+```
+
+DB 외 Secret은 다음 패턴을 따른다.
+
 ``` text
 moongcheap-{env}-{service}-{purpose}-secret
 ```
@@ -679,8 +688,7 @@ moongcheap-{env}-{service}-{purpose}-secret
 예:
 
 ``` text
-moongcheap-develop-be-db-secret
-moongcheap-develop-ai-db-secret
+moongcheap-develop-db-secret
 moongcheap-develop-infra-discord-secret
 ```
 
