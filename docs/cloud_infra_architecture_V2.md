@@ -188,15 +188,15 @@ RDS / Redis / OpenSearch / S3
 | Ingress / FE                           | BE Service        | `[BE API Port 확정 필요]`     | Backend API              |
 | BE                                     | API / AI Service  | `[AI API Port 확정 필요]`     | AI API 호출                |
 | BE / API                               | RDS PostgreSQL    | TCP `5432`                | PostgreSQL / pgvector    |
-| BE                                     | ElastiCache Redis | TCP `6379` `[사용 시]`       | Cache                    |
-| BE                                     | OpenSearch        | TCP `443` `[사용 시]`        | Search                   |
+| BE                                     | ElastiCache Redis | TCP `6379`                 | Cache                    |
+| BE                                     | OpenSearch        | TCP `443`                  | Search                   |
 | Workload                               | S3                | HTTPS `443`               | Object Upload / Download |
 
 - Security Group은 `0.0.0.0/0` 기반 내부 허용을 지양하고 **Source Security Group 기반 접근 제어**를 우선한다.
 - RDS는 Public Access를 비활성화한다.
 - DB Security Group의 PostgreSQL `5432` Inbound는 애플리케이션 접근이 필요한 Security Group에서만 허용한다.
 - 실제 FE / BE / AI Service Port는 각 파트의 API 및 Container Port 확정 후 반영한다.
-- Redis와 OpenSearch는 최종 사용 여부 확정 후 Terraform 및 Security Group에 반영한다.
+- Redis와 OpenSearch는 확정 구성으로, Security Group 및 Terraform에 필수 구성 요소로 반영한다.
 
 ---
 
@@ -672,14 +672,14 @@ S3 Bucket은 Public Access를 허용하지 않으며, EKS Workload에서 S3 접�
 
 ### 6.4 Redis / OpenSearch
 
-Redis와 OpenSearch는 최종 애플리케이션 요구사항에 따라 사용 여부를 확정한다.
+Redis와 OpenSearch는 `naming_convention_V2.md` 3.8·3.9절 기준 **확정 구성 요소**이다.
 
-| 서비스 후보 용도 상태  |                           |                   |                                                        |
-| ------------- | ------------------------- | ----------------- | ------------------------------------------------------ |
-| Redis         | Amazon ElastiCache        | Cache / Session 등 | Redis OSS / `cache.t4g.small ×2` / On-Demand           |
-| OpenSearch    | Amazon OpenSearch Service | 서비스 검색            | `t3.small.search ×1`, gp3 10 GiB, 3000 IOPS, On-Demand |
+| 서비스 | AWS 서비스 | 용도 | 스펙 |
+| --- | --- | --- | --- |
+| Redis | Amazon ElastiCache | Cache / Session 등 | Redis OSS / `cache.t4g.small ×2` / On-Demand |
+| OpenSearch | Amazon OpenSearch Service | 서비스 검색 | `t3.small.search ×1`, gp3 10 GiB, 3000 IOPS, On-Demand |
 
-OpenSearch를 도입하더라도 **로그 수집 및 모니터링 용도로 사용하지 않는다.**
+OpenSearch는 **로그 수집 및 모니터링 용도로 사용하지 않는다.**
 
 로그는 다음 Observability Stack으로 처리한다.
 
@@ -694,7 +694,7 @@ Grafana
 
 ```
 
-따라서 OpenSearch가 도입되는 경우 서비스 검색 등 **애플리케이션 기능을 위한 Search Engine 역할로 한정**한다.
+따라서 OpenSearch는 서비스 검색 등 **애플리케이션 기능을 위한 Search Engine 역할로 한정**한다.
 
 ---
 
@@ -931,7 +931,7 @@ Prometheus와 Loki는 데이터 보존이 필요한 Stateful Component이므로 
 | Alloy CPU / Memory         | `[확정 필요]`                         |
 | Discord Webhook            | Secrets Manager 등 Secret 관리 정책 적용 |
 
-> OpenSearch를 도입하더라도 Log Monitoring 용도로 중복 사용하지 않는다. OpenSearch는 도입 시 애플리케이션의 서비스 검색 기능을 담당하고, 운영 Log는 Alloy → Loki → Grafana 체계로 관리한다.
+> OpenSearch는 Log Monitoring 용도로 중복 사용하지 않는다. OpenSearch는 애플리케이션의 서비스 검색 기능을 담당하고, 운영 Log는 Alloy → Loki → Grafana 체계로 관리한다.
 
 ---
 

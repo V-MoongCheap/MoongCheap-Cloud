@@ -511,11 +511,9 @@ ElastiCache도 처음 검토한 Serverless 구성에서는:
 
 > **\$68.62/month**
 
-Redis가 실제로 필요한지는 BE의 Session/Cache 요구사항에 따라 최종
-결정하며, 예산이 부족하면 EKS 내부 Redis Pod 자체 호스팅도 비교한다.
-
-기존 비용 관리 문서에서도 ElastiCache는 필수가 아니라 Redis 요구사항
-확인 후 도입 여부를 결정하는 선택 서비스로 관리하고 있었다.
+Redis는 BE의 Session/Cache 요구사항을 반영하여 **Amazon ElastiCache로
+확정**한다. 예산이 부족한 경우에는 EKS 내부 Redis Pod 자체 호스팅으로
+전환하는 방안을 비용 절감 대안으로 비교한다.
 
 ------------------------------------------------------------------------
 

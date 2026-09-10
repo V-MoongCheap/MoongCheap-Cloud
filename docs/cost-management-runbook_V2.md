@@ -226,10 +226,11 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 
 ### 권장 운영 규칙
 
-1.  기본값은 A(자체 호스팅)로 시작 --- BE팀 요청 기능(Session/Cache
-    등)이 자체 호스팅으로도 충분한지 먼저 확인
+1.  기본값은 확정 구성인 관리형 서비스(Amazon ElastiCache / OpenSearch)로
+    운영한다.
 2.  Week 2 종료 시점(9/20 전후)에 실제 비용 소진율을 확인 → Cost
-    Explorer 기준 예산의 50% 미만 사용 중이면 B(ElastiCache)로 전환 검토
+    Explorer 기준 예산의 80% 이상 사용 중이면 EKS 자체 호스팅(Redis Pod /
+    OpenSearch Pod)으로 전환을 검토한다.
 3.  전환하더라도 Redis가 실제로 어떤 기능(Session/Cache/PubSub)에
     쓰이는지를 먼저 BE팀에게 확인 (13장 Action Item)
 
@@ -348,7 +349,7 @@ Destroy하지 않는다.**
 | **50%** | \$276 | 정상 사용 여부 확인 |
 | **70%** | \$386.40 | 비용 증가 서비스 확인 |
 | **80%** | \$441.60 | 신규 리소스/스펙 상향 재검토 |
-| **90%** | \$496.80 | ElastiCache/OpenSearch 등 선택 서비스 재검토 |
+| **90%** | \$496.80 | ElastiCache/OpenSearch 등 EKS 자체 호스팅 전환 재검토 |
 | **100%** | \$552 | 예산 초과 대응 |
 
 -   AWS Cost Explorer **주 1회 이상 확인**
@@ -362,9 +363,9 @@ Destroy하지 않는다.**
 
 | 항목 | 현재 상태 | 확인 필요 대상 |
 | --- | --- | --- |
-| Redis 실제 용도(Session/Cache/PubSub) | ElastiCache 비용은 산정했으나 실제 용도 및 필요 여부 미확정 | BE팀 |
+| Redis 실제 활용 기능(Session/Cache/PubSub) | Amazon ElastiCache 사용은 확정, 구체적으로 어떤 기능에 쓰이는지는 미확정 | BE팀 |
 | AI팀 외부 API 사용 여부·비용 | AI팀 요구사항 문서상 "외부 API 미사용" 명시, 최신 상황 재확인 필요 | AI팀 |
-| OpenSearch 사용 여부·방식 | 관리형 OpenSearch 비용은 산정했으나 실제 검색 기능 적용 여부 미확정 | BE/FE팀 |
+| OpenSearch 색인 대상·연동 방식 | Amazon OpenSearch Service 사용은 확정, 실제 색인 데이터 및 BE/FE 연동 방식은 미확정 | BE/FE팀 |
 | BE/AI Pod Resource Spec | CPU Worker 기반으로 변경됨. 최종 `requests/limits` 확인 후 `t3.large × N` 수용 가능 여부 검증 필요 | BE/AI팀 / 인프라팀 |
 | 도메인 결제 주체·카드 | 미정 | 도메인 네임 활용 여부부터 타 파트와 논의할 것. 결제는 상우님이 인프라 포함 일괄 결제 |
 | 접속 매뉴얼 템플릿 | 미작성 | 필요 시 작성 |
