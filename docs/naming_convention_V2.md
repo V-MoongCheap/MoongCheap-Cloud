@@ -749,7 +749,8 @@ State Bucket은 일반적인 AWS Infrastructure Open / Close 및
 
 State Encryption은 활성화한다.
 
-State Locking 방식은 `[확정 필요]`이다.
+State Locking은 별도 DynamoDB Table 없이 S3 Backend의
+`use_lockfile = true` 옵션(S3 Native Locking)을 사용한다.
 
 ------------------------------------------------------------------------
 
@@ -786,52 +787,18 @@ Router 관련 Naming은 폐기한다.
 
 ## 13. 미확정 사항
 
-  -----------------------------------------------------------------------
-  우선순위                항목                    영향
-  ----------------------- ----------------------- -----------------------
-  1                       VPC / Subnet CIDR 및 AZ Terraform Network
-
-  2                       Kubernetes Version /    EKS Terraform
-                          EKS Endpoint 정책       
-
-  3                       FE / BE·AI Node Group   EKS Scaling
-                          Min / Desired / Max     
-
-  4                       FE / BE / AI Port,      Helm
-                          Probe, Resource,        
-                          Replica                 
-
-  5                       HPA / Node Auto Scaling Helm / EKS
-                          정책                    
-
-  6                       RDS PostgreSQL Version  Terraform / Secret
-                          / DB Name / Username    
-
-  7                       RDS Backup / Deletion   Terraform
-                          Protection / Final      
-                          Snapshot                
-
-  8                       S3 Versioning /         Terraform
-                          Encryption / Lifecycle  
-
-  9                       Secrets Manager →       IAM / Helm
-                          Kubernetes Pod 전달     
-                          방식                    
-
-  10                      Jenkins / ArgoCD        Helm
-                          Resource 및 PVC         
-
-  11                      Prometheus / Loki /     Helm
-                          Grafana / Alloy         
-                          Resource 및 Retention   
-
-  12                      KT Cloud Backup 방식 /  Backup / DR
-                          주기 / 보존 / Restore   
-                          정책                    
-
-  13                      Terraform State Locking Terraform Backend
-                          방식                    
-
-  14                      Gateway API 전환 여부   Kubernetes Networking
-                          및 구현체               
-  -----------------------------------------------------------------------
+| 우선순위 | 항목 | 영향 |
+| --- | --- | --- |
+| 1 | VPC / Subnet CIDR 및 AZ | Terraform Network |
+| 2 | Kubernetes Version / EKS Endpoint 정책 | EKS Terraform |
+| 3 | FE / BE·AI Node Group Min / Desired / Max | EKS Scaling |
+| 4 | FE / BE / AI Port, Probe, Resource, Replica | Helm |
+| 5 | HPA / Node Auto Scaling 정책 | Helm / EKS |
+| 6 | RDS PostgreSQL Version / DB Name / Username | Terraform / Secret |
+| 7 | RDS Backup / Deletion Protection / Final Snapshot | Terraform |
+| 8 | S3 Versioning / Encryption / Lifecycle | Terraform |
+| 9 | Secrets Manager → Kubernetes Pod 전달 방식 | IAM / Helm |
+| 10 | Jenkins / ArgoCD Resource 및 PVC | Helm |
+| 11 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
+| 12 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
+| 13 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |

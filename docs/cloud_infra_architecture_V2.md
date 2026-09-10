@@ -1099,12 +1099,14 @@ Terraform State는 Local State가 아닌 **Remote Backend**를 사용한다.
 | State Key        | `{env}/terraform.tfstate` |
 | Region           | `ap-northeast-2`          |
 | State Encryption | 적용                        |
-| State Locking    | `[확정 필요]`                 |
+| State Locking    | S3 Lockfile (`use_lockfile = true`) |
 | State Bucket 삭제  | 일반 Destroy 대상에서 제외        |
 
 Terraform State Bucket은 AWS Infrastructure의 재생성에 필요한 핵심 Resource이므로 일반적인 Open / Close 과정에서 삭제하지 않는다.
 
 State Bucket은 애플리케이션 Object Storage Bucket과 분리한다.
+
+State Locking은 별도 DynamoDB Table 없이 S3 Backend의 `use_lockfile = true` 옵션(S3 Native Locking)을 사용한다. 동시에 여러 사람이 `terraform apply`를 실행하면 먼저 Lock을 획득한 작업만 진행되고, 나머지는 Lock이 해제될 때까지 대기하거나 실패한다.
 
 ---
 
@@ -1208,7 +1210,6 @@ KT Cloud Resource를 Terraform으로 관리할 경우 AWS Terraform Module과 �
 | Terraform    | KT Cloud Terraform 관리 환경 Spec      |
 | Terraform    | KT Cloud Provider로 관리할 Resource 범위 |
 | Terraform    | AWS 인증 방식                          |
-| State        | State Locking 방식                   |
 | Open / Close | 실제 Apply / Destroy 대상 Resource     |
 | Open / Close | Resource 간 생성·삭제 순서                |
 | Ansible      | NAT Instance OS 설정 필요 범위           |
