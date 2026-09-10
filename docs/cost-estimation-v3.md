@@ -380,7 +380,7 @@ Pod를 서로 다른 Node에 배치하기도 쉽다.
 
 단, 개별 Pod의 `requests`가 `t3.large` 한 대의 Allocatable Resource보다
 크면 해당 Pod는 Scheduling할 수 없으므로 **BE/AI 최종 Pod Spec 확인 후
-확정**한다.
+확정**한다. BE/AI Pod Resource(`requests`/`limits`)는 `[확정 필요]`이다.
 
 ------------------------------------------------------------------------
 

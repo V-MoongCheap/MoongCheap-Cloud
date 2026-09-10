@@ -366,7 +366,7 @@ Destroy하지 않는다.**
 | Redis 실제 활용 기능(Session/Cache/PubSub) | Amazon ElastiCache 사용은 확정, 구체적으로 어떤 기능에 쓰이는지는 미확정 | BE팀 |
 | AI팀 외부 API 사용 여부·비용 | AI팀 요구사항 문서상 "외부 API 미사용" 명시, 최신 상황 재확인 필요 | AI팀 |
 | OpenSearch 색인 대상·연동 방식 | Amazon OpenSearch Service 사용은 확정, 실제 색인 데이터 및 BE/FE 연동 방식은 미확정 | BE/FE팀 |
-| BE/AI Pod Resource Spec | CPU Worker 기반으로 변경됨. 최종 `requests/limits` 확인 후 `t3.large × N` 수용 가능 여부 검증 필요 | BE/AI팀 / 인프라팀 |
+| BE/AI Pod Resource Spec | CPU Worker 기반으로 변경됨. `requests/limits`는 `[확정 필요]`이며, 확정 후 `t3.large × N` 수용 가능 여부 검증 필요 | BE/AI팀 / 인프라팀 |
 | 도메인 결제 주체·카드 | 미정 | 도메인 네임 활용 여부부터 타 파트와 논의할 것. 결제는 상우님이 인프라 포함 일괄 결제 |
 | 접속 매뉴얼 템플릿 | 미작성 | 필요 시 작성 |
 
