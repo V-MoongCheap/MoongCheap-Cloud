@@ -381,7 +381,5 @@ Destroy하지 않는다.**
 -   [ ] Tailscale 계정 생성 및 AWS·KT Cloud 양쪽 Subnet Router 설정
 -   [x] 가비아 도메인 구매 및 결제 담당자 지정
 -   [ ] 주간 비용 점검 담당자 지정
--   [x] System Add-on(ArgoCD·Jenkins·모니터링) 배치 방식(6.3절 옵션
-    A/B/C) 결정
 -   [x] 타 팀 변경 요청 접수 채널 확정
 -   [ ] 접속 매뉴얼 템플릿 작성 및 각 팀 전달 방식 정리
