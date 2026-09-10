@@ -654,15 +654,21 @@ CODEOWNERS 파일은 `main`, `develop`에서 서로 다른 내용으로 관리�
 
 Terraform은 재사용 가능한 Module과 환경별 Root Module을 분리한다.
 
+Module 구성은 **네이밍 규약서 4절**을 기준으로 한다.
+
 ``` text
 terraform/
 ├── modules/
 │   ├── vpc/
+│   ├── nat/
 │   ├── eks/
 │   ├── ecr/
 │   ├── iam/
+│   ├── rds/
 │   ├── s3/
-│   └── nat/
+│   ├── secrets/
+│   ├── elasticache/
+│   └── opensearch/
 │
 └── envs/
     ├── develop/
@@ -775,11 +781,16 @@ Prometheus Rule, Grafana Dashboard, Loki 및 Alloy 설정 등도 가능한
 docs/
 ├── cloud-infra-architecture/
 │   └── architecture_v1.png
-├── cloud-infra-architecture.md
+├── cloud_infra_architecture.md
 ├── cloud-infra-git-convention.md
+├── cost-estimation.md
 ├── cost-management-runbook.md
-└── naming-convention.md
+└── naming_convention.md
 ```
+
+문서 파일명 뒤의 `_V2`, `-v3` 등 버전 표기는 문서 개정 이력을 구분하기
+위한 것이므로 본 Convention에서는 버전 번호까지 고정하지 않는다. 실제
+파일은 최신 버전 표기를 포함한 이름을 사용한다.
 
 문서에서 사용하는 이미지 등 별도 리소스는 해당 문서와 연관된 Directory를
 생성하여 관리할 수 있다.

@@ -493,8 +493,11 @@ StorageClass는 실제 EBS Storage 정책 확정 후 정의한다.
 
 ### 5.6 Helm Directory
 
+Helm Chart는 Git 협업 Convention의 Repository 구조에 따라 `k8s/helm/`
+아래에서 관리한다.
+
 ``` text
-helm/
+k8s/helm/
 ├── frontend/
 │   ├── Chart.yaml
 │   ├── values.yaml
@@ -526,22 +529,26 @@ Resource를 추가한다.
 FE / BE / AI는 독립 Application Repository를 유지하고, Infrastructure
 Team은 단일 Infrastructure Repository를 운영한다.
 
+Infrastructure Repository의 Directory 구조는 **Git 협업 Convention 2절**을
+기준으로 하며, Kubernetes 관련 구성은 `k8s/` 아래에서 관리한다.
+
 ``` text
-infra-repository/
+MoongCheap-Cloud/
 ├── terraform/
-├── helm/
-├── argocd/
-├── jenkins/
+├── k8s/
+│   ├── helm/
+│   ├── argocd/
+│   └── jenkins/
 ├── observability/
-├── scripts/
 ├── docs/
-└── .github/
+├── .gitignore
+└── README.md
 ```
 
 ArgoCD Directory:
 
 ``` text
-argocd/
+k8s/argocd/
 ├── develop/
 │   ├── frontend.yaml
 │   ├── backend.yaml
@@ -607,9 +614,9 @@ Terraform / Helm / ArgoCD / Image Tag에서 동일한 Environment
 Identifier를 사용한다.
 
 ``` text
-Terraform → envs/develop
-Helm      → values-develop.yaml
-ArgoCD    → argocd/develop
+Terraform → terraform/envs/develop
+Helm      → k8s/helm/{service}/values-develop.yaml
+ArgoCD    → k8s/argocd/develop
 Image     → develop-{git-short-sha}
 ```
 
@@ -620,9 +627,9 @@ Image     → develop-{git-short-sha}
 
 -   FE / BE / AI / Infra 모든 서비스는 `develop` Branch 기준 소스
     코드를 AWS 인프라에 반영한다.
--   ArgoCD는 `argocd/develop`만 활성화(Auto Sync)하며,
-    `argocd/prod`는 Sync 대상에서 제외한다.
--   `argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
+-   ArgoCD는 `k8s/argocd/develop`만 활성화(Auto Sync)하며,
+    `k8s/argocd/prod`는 Sync 대상에서 제외한다.
+-   `k8s/argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
     않고 **향후 prod 환경 도입을 위한 비활성 템플릿**으로 유지한다.
 -   위 제약으로 5.1절 Namespace(`fe`/`be`/`ai`/`infra`)는 환경 식별자를
     포함하지 않는다. develop 환경만 배포되는 동안에는 고정 Namespace
