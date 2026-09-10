@@ -741,9 +741,11 @@ Terraform을 이용한 AWS 인프라 Open/Close 작업 시 데이터 계층은 �
 | RDS PostgreSQL          | 데이터 보호 대상 |
 | S3                      | 유지        |
 | EBS/PVC 중요 데이터          | 보호        |
+| ElastiCache (Redis)     | 유지 (Cache 데이터, 재생성은 가능하나 임의 Destroy 금지) |
+| OpenSearch              | 유지 (Index 데이터, 재생성은 가능하나 임의 Destroy 금지) |
 | KT Cloud Backup Storage | 유지        |
 
-RDS, S3 및 중요 Persistent Data는 일반적인 Terraform Destroy 과정에서 데이터가 삭제되지 않도록 보호 정책을 적용한다.
+RDS, S3, ElastiCache, OpenSearch 및 중요 Persistent Data는 일반적인 Terraform Destroy 과정에서 데이터가 삭제되지 않도록 보호 정책을 적용한다. ElastiCache와 OpenSearch는 RDS와 달리 Cache/Index 등 재생성 가능한 데이터이지만, 비작업 시간 EKS Worker/Compute 종료 대상에는 포함하지 않고 관리형 서비스로 계속 유지한다(비용 관리 Runbook의 24시간 상시 운영(552h) 기준과 동일).
 
 구체적인 Terraform Lifecycle 정책과 RDS 종료/유지 방식은 비용 관리 Runbook의 Open/Close 절차와 동일하게 유지한다.
 

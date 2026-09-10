@@ -208,8 +208,8 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 > -   주말: 각 파트 작업 요청을 받아 **12:00\~익일 01:00 범위 내 필요한
 >     시간만 운영**
 > -   추석 연휴: 작업 요청이 있는 날만 **09:00\~22:00 운영**
-> -   RDS/S3/EBS 등 Stateful Resource는 일반 Compute `destroy` 대상과
->     구분하여 보호한다.
+> -   RDS/S3/EBS/ElastiCache/OpenSearch 등 Stateful·관리형 Resource는
+>     일반 Compute `destroy` 대상과 구분하여 보호한다.
 
 ------------------------------------------------------------------------
 
@@ -273,7 +273,7 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 | 생성/삭제 방식 | Terraform `apply/destroy`는 인프라팀만 수행 |
 | 스펙 변경 | 실제 CPU/Memory/Latency Metric 확인 후 변경 |
 | 고비용 서비스 추가 | 비용 증가분 계산 후 팀 협의 |
-| Stateful 보호 | **RDS, S3, EBS 등은 일반 Compute Destroy와 분리** |
+| Stateful 보호 | **RDS, S3, EBS, ElastiCache, OpenSearch 등은 일반 Compute Destroy와 분리** |
 | 일시적 Scale-up | 테스트 종료 후 기존 Baseline으로 원복 |
 | 도메인 갱신 | 프로젝트 종료 후 자동 갱신 여부 확인 |
 
