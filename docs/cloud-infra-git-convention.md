@@ -24,31 +24,31 @@ Cloud Infra Repository는 다음 구조를 기준으로 관리한다.
 ``` text
 MoongCheap-Cloud/
 ├── terraform/
-├── k8s/
-├── observability/
+├── gitops/
+│   ├── helm/
+│   ├── argocd/
+│   └── jenkins/
 ├── docs/
 ├── .gitignore
 └── README.md
 ```
 
-각 Directory의 역할은 다음과 같다.
+최상위 Directory는 **`terraform/`(AWS 인프라 프로비저닝)** 과
+**`gitops/`(Kubernetes 배포 및 CI/CD)** 두 개로 유지하고, Kubernetes와
+CI/CD 관련 구성은 모두 `gitops/` 아래에서 관리한다.
 
-  -----------------------------------------------------------------------
-  Directory               역할                    담당
-  ----------------------- ----------------------- -----------------------
-  `terraform/`            AWS / KT Cloud IaC 및   최상우 / 양재혁
-                          Terraform 관리          
+| Directory | 역할 | 담당 |
+| --- | --- | --- |
+| `terraform/` | AWS / KT Cloud IaC 및 Terraform 관리 | 최상우 / 양재혁 |
+| `gitops/helm/` | Application 및 Infrastructure Component Helm Chart | 윤성 / 김준우 |
+| `gitops/argocd/` | ArgoCD Application 정의 | 윤성 / 김준우 |
+| `gitops/jenkins/` | Jenkins Pipeline 정의 | 윤성 / 김준우 |
+| `gitops/helm/infra/observability/` | Prometheus / Grafana / Loki / Alloy | 학성 / 양재혁 |
+| `docs/` | Cloud Infra 설계 및 운영 문서 | 공통 |
 
-  `k8s/`                  Kubernetes / Helm /     윤성 / 김준우
-                          ArgoCD / Jenkins 관련   
-                          구성                    
-
-  `observability/`        Prometheus / Grafana /  학성 / 양재혁
-                          Loki / Alloy            
-
-  `docs/`                 Cloud Infra 설계 및     공통
-                          운영 문서               
-  -----------------------------------------------------------------------
+Observability는 Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도 최상위
+Directory를 두지 않고 `gitops/helm/infra/observability/`에서 Chart, Values,
+Grafana Dashboard 및 Prometheus Rule을 함께 관리한다.
 
 세부 Directory는 실제 구현 단계에서 필요한 구성요소에 따라 확장한다.
 
@@ -311,13 +311,20 @@ ecr
 iam
 s3
 nat
+rds
+elasticache
+opensearch
+secrets
+cloudflare
+budget
 terraform
-k8s
+gitops
 helm
 argocd
 jenkins
 monitoring
 backup
+docs
 ktcloud
 ```
 
@@ -392,10 +399,11 @@ helm template
 변경 영역에 따라 담당자가 서로 Review한다.
 
   변경 영역            담당              Review 원칙
-  -------------------- ----------------- -------------
-  `terraform/**`       최상우 / 양재혁   상호 Review
-  `k8s/**`             윤성 / 김준우     상호 Review
-  `observability/**`   학성 / 양재혁     상호 Review
+| 변경 영역 | 담당 | Review 원칙 |
+| --- | --- | --- |
+| `terraform/**` | 최상우 / 양재혁 | 상호 Review |
+| `gitops/helm/infra/observability/**` | 학성 / 양재혁 | 상호 Review |
+| `gitops/**` (Observability 외) | 윤성 / 김준우 | 상호 Review |
 
 예를 들어:
 
@@ -516,8 +524,8 @@ Team을 구성하고 Required Reviewer 정책을 적용한다.
   GitHub Team                 구성원            담당 영역
   --------------------------- ----------------- --------------------
   `terraform-reviewers`       최상우 / 양재혁   `terraform/**`
-  `k8s-reviewers`             윤성 / 김준우     `k8s/**`
-  `observability-reviewers`   학성 / 양재혁     `observability/**`
+  `gitops-reviewers`          윤성 / 김준우     `gitops/**`
+  `observability-reviewers`   학성 / 양재혁     `gitops/helm/infra/observability/**`
   `main-reviewers`            양재혁            `main` 최종 승인
 
 각 Team에는 Repository Review에 필요한 권한을 부여한다.
@@ -534,14 +542,18 @@ terraform/**
 → terraform-reviewers
 → Required Approval: 1
 
-k8s/**
-→ k8s-reviewers
-→ Required Approval: 1
-
-observability/**
+gitops/helm/infra/observability/**
 → observability-reviewers
 → Required Approval: 1
+
+gitops/**
+→ gitops-reviewers
+→ Required Approval: 1
 ```
+
+경로 규칙은 **더 구체적인 경로를 먼저 평가**한다. Observability 경로가
+`gitops/**`에 포함되므로, 해당 경로만 변경한 PR은 observability-reviewers의
+승인을 받는다.
 
 목표 Review 구조:
 
@@ -550,11 +562,11 @@ terraform/**
 최상우 작업 → 양재혁 Review
 양재혁 작업 → 최상우 Review
 
-k8s/**
+gitops/** (Observability 외)
 윤성 작업 → 김준우 Review
 김준우 작업 → 윤성 Review
 
-observability/**
+gitops/helm/infra/observability/**
 학성 작업 → 양재혁 Review
 양재혁 작업 → 학성 Review
 ```
@@ -637,9 +649,9 @@ Organization 이전 이후 필요한 경우 `.github/CODEOWNERS`를 사용할 �
 예:
 
 ``` text
-/terraform/       @organization/terraform-reviewers
-/k8s/             @organization/k8s-reviewers
-/observability/   @organization/observability-reviewers
+/terraform/                            @organization/terraform-reviewers
+/gitops/                               @organization/gitops-reviewers
+/gitops/helm/infra/observability/      @organization/observability-reviewers
 ```
 
 CODEOWNERS 파일은 `main`, `develop`에서 서로 다른 내용으로 관리하지 않고
@@ -668,7 +680,9 @@ terraform/
 │   ├── s3/
 │   ├── secrets/
 │   ├── elasticache/
-│   └── opensearch/
+│   ├── opensearch/
+│   ├── cloudflare/
+│   └── budget-alert/
 │
 └── envs/
     ├── develop/
@@ -695,19 +709,25 @@ terraform/modules/vpc/
 
 ------------------------------------------------------------------------
 
-## 12. Kubernetes Directory
+## 12. GitOps Directory
 
-Kubernetes 관련 설정은 `k8s/`에서 관리한다.
+Kubernetes 및 CI/CD 관련 설정은 `gitops/`에서 관리한다.
 
 초기에는 단일 Directory로 시작하며 구현에 따라 다음과 같이 확장할 수
 있다.
 
 ``` text
-k8s/
+gitops/
 ├── helm/
 │   ├── frontend/
 │   ├── backend/
-│   └── ai/
+│   ├── ai/
+│   └── infra/
+│       ├── jenkins/
+│       ├── argocd/
+│       ├── ingress/
+│       ├── cloudflared/
+│       └── observability/
 │
 ├── argocd/
 │   ├── develop/
@@ -719,12 +739,16 @@ k8s/
     └── scripts/
 ```
 
+`gitops/helm/`은 Kubernetes에 배포되는 Chart를, `gitops/argocd/`는 해당
+Chart를 동기화하는 ArgoCD Application 정의를, `gitops/jenkins/`는 Build
+Pipeline 정의를 관리한다.
+
 ### Helm
 
 환경별 차이는 Manifest를 복제하기보다 Values를 통해 관리한다.
 
 ``` text
-k8s/helm/backend/
+gitops/helm/backend/
 ├── Chart.yaml
 ├── values.yaml
 ├── values-develop.yaml
@@ -755,19 +779,25 @@ Rollback은 Git 변경 이력이 남도록 `git revert`를 기본으로 한다.
 
 ## 13. Observability Directory
 
-Observability 관련 설정은 다음 구조를 기준으로 관리한다.
+Observability Stack은 Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도
+최상위 Directory를 두지 않고 `gitops/helm/infra/observability/`에서
+관리한다.
 
 ``` text
-observability/
-├── prometheus/
-├── grafana/
-│   └── dashboards/
-├── loki/
-└── alloy/
+gitops/helm/infra/observability/
+├── Chart.yaml
+├── values.yaml
+├── values-develop.yaml
+├── dashboards/          # Grafana Dashboard JSON
+├── rules/               # Prometheus Alert Rule
+└── templates/
 ```
 
 Prometheus Rule, Grafana Dashboard, Loki 및 Alloy 설정 등도 가능한
 범위에서 Git으로 관리한다.
+
+ArgoCD Application(`gitops/argocd/{env}/observability.yaml`)은 위 경로
+하나만 참조한다.
 
 ------------------------------------------------------------------------
 
@@ -901,8 +931,8 @@ develop 동기화
 1.  `main`, `develop` 직접 Push 금지
 2.  일반 작업은 `develop`에서 분기
 3.  `terraform/**`은 최상우 ↔ 양재혁 상호 Review
-4.  `k8s/**`는 윤성 ↔ 김준우 상호 Review
-5.  `observability/**`는 학성 ↔ 양재혁 상호 Review
+4.  `gitops/**`(Observability 외)는 윤성 ↔ 김준우 상호 Review
+5.  `gitops/helm/infra/observability/**`는 학성 ↔ 양재혁 상호 Review
 6.  `develop → main`은 양재혁 최종 Review
 7.  긴급 수정은 `main → hotfix/*`
 8.  Hotfix 완료 후 반드시 `develop` 동기화

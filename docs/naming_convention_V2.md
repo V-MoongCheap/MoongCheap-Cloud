@@ -353,7 +353,9 @@ terraform/
 │   ├── s3/
 │   ├── secrets/
 │   ├── elasticache/
-│   └── opensearch/
+│   ├── opensearch/
+│   ├── cloudflare/
+│   └── budget-alert/
 │
 └── envs/
     ├── develop/
@@ -384,6 +386,8 @@ terraform/
   `secrets`       AWS Secrets Manager Secret
   `elasticache`   ElastiCache Redis
   `opensearch`    OpenSearch Domain
+  `cloudflare`    Cloudflare DNS / Tunnel
+  `budget-alert`  AWS Budgets 임계값 알림 (SNS + Lambda + Discord)
 
 Security Group은 해당 Resource를 소유하는 Module에서 관리하는 것을
 기본으로 한다.
@@ -493,11 +497,11 @@ StorageClass는 실제 EBS Storage 정책 확정 후 정의한다.
 
 ### 5.6 Helm Directory
 
-Helm Chart는 Git 협업 Convention의 Repository 구조에 따라 `k8s/helm/`
+Helm Chart는 Git 협업 Convention의 Repository 구조에 따라 `gitops/helm/`
 아래에서 관리한다.
 
 ``` text
-k8s/helm/
+gitops/helm/
 ├── frontend/
 │   ├── Chart.yaml
 │   ├── values.yaml
@@ -530,16 +534,16 @@ FE / BE / AI는 독립 Application Repository를 유지하고, Infrastructure
 Team은 단일 Infrastructure Repository를 운영한다.
 
 Infrastructure Repository의 Directory 구조는 **Git 협업 Convention 2절**을
-기준으로 하며, Kubernetes 관련 구성은 `k8s/` 아래에서 관리한다.
+기준으로 하며, Kubernetes 및 CI/CD 관련 구성은 `gitops/` 아래에서
+관리한다.
 
 ``` text
 MoongCheap-Cloud/
 ├── terraform/
-├── k8s/
+├── gitops/
 │   ├── helm/
 │   ├── argocd/
 │   └── jenkins/
-├── observability/
 ├── docs/
 ├── .gitignore
 └── README.md
@@ -548,7 +552,7 @@ MoongCheap-Cloud/
 ArgoCD Directory:
 
 ``` text
-k8s/argocd/
+gitops/argocd/
 ├── develop/
 │   ├── frontend.yaml
 │   ├── backend.yaml
@@ -615,8 +619,8 @@ Identifier를 사용한다.
 
 ``` text
 Terraform → terraform/envs/develop
-Helm      → k8s/helm/{service}/values-develop.yaml
-ArgoCD    → k8s/argocd/develop
+Helm      → gitops/helm/{service}/values-develop.yaml
+ArgoCD    → gitops/argocd/develop
 Image     → develop-{git-short-sha}
 ```
 
@@ -627,9 +631,9 @@ Image     → develop-{git-short-sha}
 
 -   FE / BE / AI / Infra 모든 서비스는 `develop` Branch 기준 소스
     코드를 AWS 인프라에 반영한다.
--   ArgoCD는 `k8s/argocd/develop`만 활성화(Auto Sync)하며,
-    `k8s/argocd/prod`는 Sync 대상에서 제외한다.
--   `k8s/argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
+-   ArgoCD는 `gitops/argocd/develop`만 활성화(Auto Sync)하며,
+    `gitops/argocd/prod`는 Sync 대상에서 제외한다.
+-   `gitops/argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
     않고 **향후 prod 환경 도입을 위한 비활성 템플릿**으로 유지한다.
 -   위 제약으로 5.1절 Namespace(`fe`/`be`/`ai`/`infra`)는 환경 식별자를
     포함하지 않는다. develop 환경만 배포되는 동안에는 고정 Namespace
