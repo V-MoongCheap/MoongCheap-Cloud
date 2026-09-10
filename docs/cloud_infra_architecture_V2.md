@@ -806,7 +806,7 @@ CI/CD Pipeline 규칙은 Git 협업 문서를 기준으로 하며, 클라우드 
 | Jenkins Agent           | Kubernetes Dynamic Pod | Build 시 생성, 완료 후 삭제              |
 | ArgoCD                  | BE·AI Worker           | GitOps 기반 배포                     |
 | Container Image         | Amazon ECR             | 서비스별 Repository 사용               |
-| Jenkins Persistent Data | EBS 기반 PVC             | Controller 재배치 시 데이터 유지          |
+| Jenkins Persistent Data | EBS 기반 PVC             | 동일 AZ 내 Controller 재배치 시 데이터 유지 (AZ 상이 시 7.2절 복구 절차 참고) |
 
 #### CI/CD 흐름
 
@@ -841,6 +841,26 @@ EKS
 - Container Image Tag 및 Repository Naming은 Git 협업 문서를 따른다.
 - `latest` Tag는 사용하지 않는다.
 - Jenkins Build로 인해 BE·AI Worker의 리소스가 부족해지는 경우 CI/CD 전용 Node Group 분리를 검토한다.
+
+#### Jenkins PVC AZ 제약 및 복구 절차
+
+EBS 볼륨은 생성된 **Availability Zone에서만 노드에 연결**할 수 있다. Jenkins Controller Pod가 볼륨이 있는 AZ가 아닌 다른 AZ의 노드로 재배치되면 PVC Mount가 실패하여 Pod가 기동하지 못한다. **EBS CSI Driver를 사용한다는 사실만으로 교차 AZ 재배치·복구가 보장되지 않는다.**
+
+이를 방지하기 위해 다음을 적용한다.
+
+- Jenkins Controller가 사용하는 EBS CSI `StorageClass`는 `volumeBindingMode: WaitForFirstConsumer`로 설정한다. 이를 통해 PV가 미리 특정 AZ에 생성되지 않고, Pod가 스케줄링된 이후 그 노드의 AZ에 맞춰 볼륨이 생성된다.
+- Jenkins Controller Pod는 최초 스케줄된 AZ에 고정되도록 하며, 이후 재배치는 `nodeAffinity` / `topology.kubernetes.io/zone` Label을 통해 동일 AZ의 노드로만 제한한다.
+- BE·AI Worker Node Group은 최소 2개 이상의 AZ에 걸쳐 구성되므로, 다른 AZ 노드로의 임의 재배치를 막기 위한 Affinity 설정 없이는 위 장애가 발생할 수 있다는 점에 유의한다.
+
+해당 AZ 자체에 장애가 발생해 동일 AZ 내 재배치가 불가능한 경우(교차 AZ 복구)에는 자동 복구를 보장하지 않으며 다음 절차를 따른다.
+
+1.  기존 EBS 볼륨의 최신 Snapshot을 확인한다(Snapshot 정책은 6.6절 데이터 보호 정책을 따른다).
+2.  장애 AZ가 아닌 다른 AZ에 Snapshot으로부터 신규 EBS 볼륨을 생성한다.
+3.  Jenkins Controller PVC/PV를 신규 볼륨을 가리키도록 재생성하고 Controller Pod를 해당 AZ 노드로 재스케줄한다.
+4.  Configuration as Code로 관리되는 설정은 Controller 재생성 시 함께 복구되는지 확인한다.
+5.  Snapshot 시점 이후의 Job 이력·설정 변경 유실 가능성을 팀에 공유한다.
+
+Snapshot 주기, RPO/RTO 목표 및 자동화 여부는 `[확정 필요]`이다.
 
 #### CI/CD Resource Spec
 
