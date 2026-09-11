@@ -27,20 +27,20 @@ variable "public_subnet_cidrs" {
   default     = ["10.0.0.0/24"]
 }
 
-variable "private_subnet_cidrs" {
+variable "web_private_subnet_cidrs" {
   type        = list(string)
-  description = "Private Subnet CIDR 목록 (EKS Node/Pod 배치용, AZ당 1개)"
+  description = "WEB Private Subnet CIDR 목록 (FE Worker Node Group 배치용, AZ당 1개)"
   default     = ["10.0.1.0/24", "10.0.2.0/24"]
 }
 
-variable "nat_instance_type" {
-  type        = string
-  description = "NAT Instance 인스턴스 타입"
-  default     = "t3a.micro"
+variable "was_private_subnet_cidrs" {
+  type        = list(string)
+  description = "WAS Private Subnet CIDR 목록 (BE·AI Worker Node Group 배치용, AZ당 1개)"
+  default     = ["10.0.11.0/24", "10.0.12.0/24"]
 }
 
-variable "nat_enable_ssm" {
-  type        = bool
-  description = "NAT Instance에 SSM Session Manager 접속용 IAM Role을 붙일지 여부 (디버깅용, 기본 false)"
-  default     = false
+variable "db_private_subnet_cidrs" {
+  type        = list(string)
+  description = "DB Private Subnet CIDR 목록 (RDS 배치용, AZ당 1개, 인터넷 아웃바운드 라우트 없음)"
+  default     = ["10.0.21.0/24", "10.0.22.0/24"]
 }
