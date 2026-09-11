@@ -50,6 +50,12 @@ resource "aws_launch_template" "fe" {
     ]
   }
 
+  # IMDSv2 강제: http_tokens를 지정하지 않으면 IMDSv1도 허용되어, 노드 내
+  # Pod가 IMDS 엔드포인트로 노드 IAM 역할 자격증명을 탈취할 수 있다.
+  metadata_options {
+    http_tokens = "required"
+  }
+
   tag_specifications {
     resource_type = "instance"
     tags = {
@@ -66,6 +72,10 @@ resource "aws_launch_template" "be_ai" {
       aws_security_group.be_ai.id,
       aws_eks_cluster.this.vpc_config[0].cluster_security_group_id,
     ]
+  }
+
+  metadata_options {
+    http_tokens = "required"
   }
 
   tag_specifications {

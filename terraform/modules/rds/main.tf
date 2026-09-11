@@ -47,6 +47,7 @@ resource "aws_db_instance" "this" {
   instance_class    = var.instance_class
   allocated_storage = var.allocated_storage
   storage_type      = "gp3"
+  storage_encrypted = true
 
   multi_az = var.multi_az
 
