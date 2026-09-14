@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+
+metadata:
+  name: moongcheap-services
+  namespace: argocd
+
+spec:
+  description: MoongCheap application services
+
+  sourceRepos:
+    - https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: "moongcheap-*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
