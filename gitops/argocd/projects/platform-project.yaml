@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+
+metadata:
+  name: moongcheap-platform
+  namespace: argocd
+
+spec:
+  description: MoongCheap platform components
+
+  sourceRepos:
+    - https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+    - https://prometheus-community.github.io/helm-charts
+
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"

@@ -1,0 +1,52 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+
+metadata:
+  name: moongcheap-platform
+  namespace: argocd
+
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+
+  generators:
+    - git:
+        repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+        # 나중에 main으로 변경
+        revision: feat/gitops
+        files:
+          - path: gitops/platform/**/config.yaml
+
+
+  template:
+    metadata:
+      name: "{{ .name }}"
+
+    spec:
+      project: moongcheap-platform
+
+      sources:
+        - repoURL: "{{ .helm.repoURL }}"
+          chart: "{{ .helm.chart }}"
+          targetRevision: "{{ .helm.version }}"
+          helm:
+            releaseName: "{{ .name }}"
+            valueFiles:
+              - "$values/{{ .path.path }}/values.yaml"
+
+        - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+          targetRevision: feat/gitops
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ .namespace }}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+          - CreateNamespace=true
