@@ -1,0 +1,17 @@
+nameOverride: frontend
+
+image:
+  repository: "REPLACE_ME/frontend"
+
+containerPort: 3000
+
+service:
+  port: 80
+
+livenessProbe:
+  enabled: false
+  path: /health
+
+readinessProbe:
+  enabled: false
+  path: /health

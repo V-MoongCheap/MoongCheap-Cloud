@@ -1,0 +1,17 @@
+nameOverride: ai
+
+image:
+  repository: "REPLACE_ME/ai"
+
+containerPort: 8000
+
+service:
+  port: 80
+
+livenessProbe:
+  enabled: false
+  path: /health
+
+readinessProbe:
+  enabled: false
+  path: /health
