@@ -32,14 +32,14 @@ MoongCheap-Cloud/
     ├── values/
     │   ├── base.yaml
     │   ├── env/
-    │   │   ├── dev.yaml
+    │   │   ├── develop.yaml
     │   │   └── prod.yaml
     │   ├── services/
     │   │   ├── frontend.yaml
     │   │   ├── backend.yaml
     │   │   └── ai.yaml
     │   └── overrides/
-    │       ├── dev/
+    │       ├── develop/
     │       │   ├── frontend.yaml
     │       │   ├── backend.yaml
     │       │   └── ai.yaml
@@ -50,7 +50,7 @@ MoongCheap-Cloud/
     │
     ├── platform/
     │   ├── namespaces/
-    │   │   ├── dev.yaml
+    │   │   ├── develop.yaml
     │   │   └── prod.yaml
     │   │
     │   ├── monitoring/
@@ -72,7 +72,7 @@ MoongCheap-Cloud/
     │   │   ├── services-project.yaml
     │   │   └── platform-project.yaml
     │   │
-    │   ├── applicationset-services-dev.yaml
+    │   ├── applicationset-services-develop.yaml
     │   ├── applicationset-services-prod.yaml
     │   └── applicationset-platform.yaml
     │
@@ -120,7 +120,7 @@ base
 → 전체 서비스 공통 설정
 
 env
-→ dev / prod 환경 설정
+→ develop / prod 환경 설정
 
 services
 → frontend / backend / ai 서비스 설정
@@ -129,16 +129,16 @@ overrides
 → 특정 환경 + 특정 서비스의 최종 설정
 ```
 
-예를 들어 `backend-dev`는 다음 Values를 조합한다.
+예를 들어 `backend-develop`는 다음 Values를 조합한다.
 
 ```text
 base.yaml
 +
-env/dev.yaml
+env/develop.yaml
 +
 services/backend.yaml
 +
-overrides/dev/backend.yaml
+overrides/develop/backend.yaml
 ```
 
 Jenkins에서 새로운 이미지를 ECR에 Push한 뒤 배포 Image Tag를 변경할 경우
@@ -148,11 +148,11 @@ Jenkins에서 새로운 이미지를 ECR에 Push한 뒤 배포 Image Tag를 변�
 
 ## 4. Service 배포
 
-서비스는 하나의 EKS 클러스터 안에서 Namespace를 기준으로 dev / prod 환경을 분리한다.
+서비스는 하나의 EKS 클러스터 안에서 Namespace를 기준으로 develop / prod 환경을 분리한다.
 
 ```text
 EKS
-├── moongcheap-dev
+├── moongcheap-develop
 │   ├── frontend
 │   ├── backend
 │   └── ai
@@ -166,18 +166,18 @@ EKS
 ArgoCD ApplicationSet도 환경별로 분리한다.
 
 ```text
-applicationset-services-dev.yaml
+applicationset-services-develop.yaml
 applicationset-services-prod.yaml
 ```
 
-### Dev
+### Develop
 
 ```text
 develop
    ↓
-applicationset-services-dev
+applicationset-services-develop
    ↓
-moongcheap-dev
+moongcheap-develop
 ```
 
 ### Prod
@@ -194,7 +194,7 @@ moongcheap-prod
 
 ## 5. Platform
 
-Platform은 dev / prod로 중복 설치하지 않는다.
+Platform은 develop / prod로 중복 설치하지 않는다.
 
 하나의 EKS 클러스터에서 공통으로 사용하는 구성은 `platform/`에서 한 세트만 관리한다.
 
@@ -202,7 +202,7 @@ Platform은 dev / prod로 중복 설치하지 않는다.
 
 ```text
 EKS
-├── moongcheap-dev
+├── moongcheap-develop
 ├── moongcheap-prod
 │
 ├── monitoring
@@ -318,7 +318,7 @@ Frontend / Backend / AI Application을 관리한다.
 배포 대상은:
 
 ```text
-moongcheap-dev
+moongcheap-develop
 moongcheap-prod
 ```
 
@@ -358,19 +358,19 @@ project: moongcheap-platform
 
 ```text
 argocd/
-├── applicationset-services-dev.yaml
+├── applicationset-services-develop.yaml
 ├── applicationset-services-prod.yaml
 └── applicationset-platform.yaml
 ```
 
-### Service Dev
+### Service Develop
 
 ```text
-applicationset-services-dev
+applicationset-services-develop
         │
-        ├── moongcheap-frontend-dev
-        ├── moongcheap-backend-dev
-        └── moongcheap-ai-dev
+        ├── moongcheap-frontend-develop
+        ├── moongcheap-backend-develop
+        └── moongcheap-ai-develop
 ```
 
 ### Service Prod
@@ -420,7 +420,7 @@ Service ApplicationSet
         ↓
        EKS
         ↓
-moongcheap-dev / moongcheap-prod
+moongcheap-develop / moongcheap-prod
 ```
 
 ### Platform
@@ -445,7 +445,7 @@ Platform Namespace
 
 - Application 공통 Kubernetes 리소스는 `charts/`에서 관리
 - 환경 / 서비스별 설정은 `values/`에서 관리
-- 서비스는 `dev / prod` Namespace로 분리
+- 서비스는 `develop / prod` Namespace로 분리
 - Platform은 클러스터 공통으로 한 세트만 운영
 - Platform 설정은 `config.yaml + values.yaml` 형태로 관리
 - Service와 Platform은 별도의 AppProject 사용
@@ -465,7 +465,7 @@ Platform Namespace
                                │
            ┌───────────────────┼────────────────────┐
            │                   │                    │
-   moongcheap-dev      moongcheap-prod         Platform
+   moongcheap-develop      moongcheap-prod         Platform
            │                   │                    │
       FE / BE / AI        FE / BE / AI        monitoring
            │                   │              observability

@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
-  name: moongcheap-services-dev
+  name: moongcheap-services-develop
   namespace: argocd
 
 spec:
@@ -18,7 +18,7 @@ spec:
 
   template:
     metadata:
-      name: "moongcheap-{{ .service }}-dev"
+      name: "moongcheap-{{ .service }}-develop"
 
     spec:
       project: moongcheap-services
@@ -31,9 +31,9 @@ spec:
             releaseName: "{{ .service }}"
             valueFiles:
               - $values/gitops/values/base.yaml
-              - $values/gitops/values/env/dev.yaml
+              - $values/gitops/values/env/develop.yaml
               - $values/gitops/values/services/{{ .service }}.yaml
-              - $values/gitops/values/overrides/dev/{{ .service }}.yaml
+              - $values/gitops/values/overrides/develop/{{ .service }}.yaml
 
         - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
           targetRevision: develop
@@ -41,7 +41,7 @@ spec:
 
       destination:
         server: https://kubernetes.default.svc
-        namespace: moongcheap-dev
+        namespace: moongcheap-develop
 
       syncPolicy:
         automated:

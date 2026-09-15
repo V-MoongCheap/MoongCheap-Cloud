@@ -15,3 +15,6 @@ livenessProbe:
 readinessProbe:
   enabled: false
   path: /health
+
+nodeSelector:
+  workload: frontend
