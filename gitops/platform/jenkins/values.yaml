@@ -1,0 +1,97 @@
+# gitops/platform/jenkins/values.yaml
+#
+# 공식 jenkinsci/helm-charts(jenkins/jenkins) 기준 values 파일입니다.
+# [배포 후 기입]으로 표시된 값은 실제 AWS 계정/클러스터 정보가 나온 뒤 채워야 합니다.
+
+controller:
+  image:
+    repository: "jenkins/jenkins"
+    tag: "lts-jdk17"
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+
+  installPlugins:
+    - kubernetes:latest
+    - workflow-aggregator:latest
+    - git:latest
+    - github:latest
+    - configuration-as-code:latest
+    - credentials-binding:latest
+    - pipeline-utility-steps:latest
+
+  JCasC:
+    configScripts:
+      dynamic-agents: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "eks-develop"
+                serverUrl: "https://kubernetes.default"
+                namespace: "infra"
+                jenkinsUrl: "http://jenkins.infra.svc.cluster.local:8080"
+                containerCapStr: "10"
+                podRetention: "never"
+                templates:
+                  - name: "node-builder"
+                    label: "node-builder"
+                    namespace: "infra"
+                    containers:
+                      - name: "builder"
+                        image: "node:20"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+                  - name: "java-builder"
+                    label: "java-builder"
+                    namespace: "infra"
+                    containers:
+                      - name: "builder"
+                        image: "eclipse-temurin:17-jdk"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "1"
+                        resourceRequestMemory: "2Gi"
+                  - name: "python-builder"
+                    label: "python-builder"
+                    namespace: "infra"
+                    containers:
+                      - name: "builder"
+                        image: "python:3.11-slim"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+
+  ingress:
+    enabled: true
+    hostName: "jenkins.[배포후_도메인_기입]"
+    annotations:
+      kubernetes.io/ingress.class: "nginx"
+
+# NOTE: serviceAccount/persistence는 controller: 안이 아니라 최상위 키여야
+# 실제로 반영된다는 걸 helm template 검증으로 확인함 (5.9.62 기준)
+serviceAccount:
+  create: false
+  name: jenkins-sa
+  # annotations:
+  #   eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/moongcheap-develop-jenkins-role   # [배포 후 기입]
+
+persistence:
+  enabled: true
+  storageClass: "gp3"
+  size: "20Gi"
+  # NOTE: 이 Chart는 PVC 이름을 Release 이름 기준으로 자동 생성해서
+  # 네이밍 규약서상 "jenkins-home-pvc"로 직접 맞추기는 어려움 — 팀 확인 필요 항목으로 남겨둠
+
+agent:
+  enabled: false
+
+rbac:
+  create: true
