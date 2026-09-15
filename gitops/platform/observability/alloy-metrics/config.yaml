@@ -1,0 +1,9 @@
+# gitops/platform/observability/alloy-metrics/config.yaml
+name: alloy-metrics
+namespace: monitoring
+syncWave: "1"
+
+helm:
+  repoURL: https://grafana.github.io/helm-charts
+  chart: alloy
+  version: "1.12.1"

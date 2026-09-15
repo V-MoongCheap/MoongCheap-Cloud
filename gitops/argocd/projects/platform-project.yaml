@@ -11,11 +11,14 @@ spec:
   sourceRepos:
     - https://github.com/V-MoongCheap/MoongCheap-Cloud.git
     - https://prometheus-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
 
   destinations:
     - server: https://kubernetes.default.svc
       namespace: monitoring
-
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+        
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
