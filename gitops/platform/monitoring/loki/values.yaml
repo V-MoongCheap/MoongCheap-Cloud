@@ -1,0 +1,57 @@
+# gitops/infra/monitoring/dev/loki-values.yaml
+#
+# chart: grafana/loki
+# 릴리스 예: helm upgrade --install loki grafana/loki -n monitoring -f this-file.yaml
+#
+# 처음 시작이므로 SingleBinary(단일 바이너리) 모드 + 로컬 파일시스템 스토리지로 최대한 가볍게.
+# 트래픽/로그량이 늘어나면 deploymentMode: SimpleScalable + S3(예: EKS면 IRSA로 S3 버킷) 로 전환 고려.
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: index_
+          period: 24h
+  limits_config:
+    retention_period: 168h # 7일. 필요에 맞게 조정
+
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
+
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    size: 20Gi
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+gateway:
+  enabled: true # Alloy/Grafana가 이 gateway 서비스 하나로 push/query 하면 됨
+  service:
+    type: LoadBalancer
+test:
+  enabled: false
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
