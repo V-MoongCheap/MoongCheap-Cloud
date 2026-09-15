@@ -18,7 +18,7 @@ data "aws_ami" "al2023" {
 resource "aws_security_group" "nat" {
   name        = "${var.project}-${var.env}-nat-sg"
   description = "NAT Instance - allow traffic from within VPC"
-  vpc_id      = aws_vpc.this.id
+  vpc_id      = var.vpc_id
 
   ingress {
     description = "Allow all traffic from within VPC"
@@ -84,8 +84,8 @@ resource "aws_eip" "nat" {
 # NAT Instance와 분리된 독립 ENI
 # 인스턴스가 replace(재생성)되어도 이 ENI(및 여기 붙은 EIP/Route)는 그대로 유지되도록 하기 위함
 resource "aws_network_interface" "nat" {
-  subnet_id         = aws_subnet.public[0].id
-  private_ips       = [cidrhost(var.public_subnet_cidrs[0], 10)]
+  subnet_id         = var.public_subnet_id
+  private_ips       = [cidrhost(var.public_subnet_cidr, 10)]
   security_groups   = [aws_security_group.nat.id]
   source_dest_check = false
 
