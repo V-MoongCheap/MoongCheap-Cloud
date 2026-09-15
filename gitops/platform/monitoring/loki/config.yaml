@@ -1,0 +1,8 @@
+# gitops/platform/monitoring/loki/config.yaml
+name: loki
+namespace: monitoring
+
+helm:
+  repoURL: https://grafana.github.io/helm-charts
+  chart: loki
+  version: "7.3.0"

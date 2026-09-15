@@ -1,0 +1,71 @@
+# gitops/infra/monitoring/dev/alloy-metrics-values.yaml
+#
+# chart: grafana/alloy
+# 릴리스 예: helm upgrade --install alloy-metrics grafana/alloy -n monitoring -f this-file.yaml
+#
+# 역할: 노드마다 1개씩 떠서(DaemonSet) 그 노드의 호스트 OS 메트릭(node_exporter가 하던 일)을
+# 수집한 뒤 Prometheus로 remote_write. discovery.kubernetes로 클러스터 전체를 뒤지는 게
+# 아니라 "자기 자신의 호스트"만 보기 때문에, kube-state-metrics 같은 걸 여기서 긁지 않는 한
+# clustering이 없어도 중복 수집 문제가 생기지 않음.
+service:
+  type: LoadBalancer
+  
+controller:
+  type: daemonset
+  hostNetwork: true
+  hostPID: true
+  volumes:
+    extra:
+      - name: rootfs
+        hostPath:
+          path: /
+      - name: procfs
+        hostPath:
+          path: /proc
+      - name: sysfs
+        hostPath:
+          path: /sys
+
+alloy:
+  mounts:
+    extra:
+      - name: rootfs
+        mountPath: /rootfs
+        readOnly: true
+      - name: procfs
+        mountPath: /proc
+        readOnly: true
+      - name: sysfs
+        mountPath: /sys
+        readOnly: true
+
+  configMap:
+    content: |
+      // node_exporter 대체: 호스트 CPU/메모리/디스크/네트워크 등
+      prometheus.exporter.unix "node" {
+        rootfs_path = "/rootfs"
+        procfs_path = "/proc"
+        sysfs_path  = "/sys"
+      }
+
+      prometheus.scrape "node" {
+        targets      = prometheus.exporter.unix.node.targets
+        forward_to   = [prometheus.remote_write.default.receiver]
+        scrape_interval = "30s"
+      }
+
+      // Alloy 자기 자신의 상태도 같이 모니터링하고 싶으면 아래 유지, 필요없으면 삭제
+      prometheus.exporter.self "alloy" { }
+
+      prometheus.scrape "alloy" {
+        targets    = prometheus.exporter.self.alloy.targets
+        forward_to = [prometheus.remote_write.default.receiver]
+      }
+
+      prometheus.remote_write "default" {
+        endpoint {
+          url = "http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write"
+          // 서비스명은 kube-prometheus-stack 릴리스 이름에 따라 달라짐.
+          // kubectl get svc -n monitoring 으로 실제 이름 확인 후 맞춰서 수정
+        }
+      }
