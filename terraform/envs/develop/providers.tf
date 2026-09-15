@@ -14,5 +14,5 @@ provider "aws" {
 }
 
 provider "cloudflare" {
-  api_token = data.aws_secretsmanager_secret_version.cloudflare_api_token.secret_string
+  api_token = module.cloudflare_secret.secret_string
 }

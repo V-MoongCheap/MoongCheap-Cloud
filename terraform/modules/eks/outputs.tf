@@ -18,11 +18,20 @@ output "cluster_oidc_issuer_url" {
   description = "OIDC Issuer URL (M7 IRSA에서 사용)"
 }
 
+output "fe_security_group_id" {
+  value       = aws_security_group.fe.id
+  description = "FE Worker Node Group Security Group ID (Source SG 기반 접근 제어에서 사용)"
+}
+
+output "be_ai_security_group_id" {
+  value       = aws_security_group.be_ai.id
+  description = "BE·AI Worker Node Group Security Group ID (RDS/Redis/OpenSearch Source SG로 사용)"
+}
+
 output "node_group_names" {
   value = {
-    fe     = aws_eks_node_group.fe.node_group_name
-    be     = aws_eks_node_group.be.node_group_name
-    ai_cpu = aws_eks_node_group.ai_cpu.node_group_name
+    fe    = aws_eks_node_group.fe.node_group_name
+    be_ai = aws_eks_node_group.be_ai.node_group_name
   }
   description = "생성된 Node Group 이름 목록"
 }
