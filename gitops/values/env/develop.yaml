@@ -1,5 +1,5 @@
 podLabels:
-  environment: dev
+  environment: develop
 
 resources:
   requests:
