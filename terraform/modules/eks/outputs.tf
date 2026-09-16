@@ -28,12 +28,18 @@ output "be_ai_security_group_id" {
   description = "BE·AI Worker Node Group Security Group ID (RDS/Redis/OpenSearch Source SG로 사용)"
 }
 
+# Managed Node Group과 달리 Karpenter가 직접 launch하는 EC2는 클러스터 SG를 자동으로
+# 못 받는다 — 안 붙이면 컨트롤 플레인과 통신이 안 돼 노드가 등록되지 않는다.
+output "cluster_security_group_id" {
+  value       = aws_eks_cluster.this.vpc_config[0].cluster_security_group_id
+  description = "EKS 클러스터 SG ID — Karpenter 노드가 컨트롤 플레인과 통신하려면 이 SG도 반드시 붙어있어야 함"
+}
+
 output "node_group_names" {
   value = {
-    fe    = aws_eks_node_group.fe.node_group_name
-    be_ai = aws_eks_node_group.be_ai.node_group_name
+    fe = aws_eks_node_group.fe.node_group_name
   }
-  description = "생성된 Node Group 이름 목록"
+  description = "생성된 Managed Node Group 이름 목록 (BE·AI는 Karpenter가 대체해서 없음)"
 }
 
 output "oidc_provider_arn" {

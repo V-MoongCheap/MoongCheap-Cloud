@@ -64,9 +64,8 @@ variable "master_username" {
   default     = "moongcheap_admin"
 }
 
-# Secrets Manager는 삭제해도 기본 30일 복구 대기 상태로 남아, 같은 이름으로 재생성하려는
-# 다음 apply가 "이미 삭제 예정으로 스케줄된 시크릿" 에러로 막힌다. personal-test처럼 자주
-# destroy/apply를 반복하는 환경에서는 0으로 둬서 즉시 완전 삭제되게 한다.
+# Secrets Manager는 삭제해도 기본 30일 복구 대기 상태로 남아 같은 이름으로 재생성이
+# 막힌다. destroy/apply를 자주 반복하는 환경에서는 0으로 둘 것.
 variable "secret_recovery_window_in_days" {
   type        = number
   description = "Master 계정 Secret 삭제 시 복구 대기 기간(일). 0이면 즉시 완전 삭제(복구 불가)"

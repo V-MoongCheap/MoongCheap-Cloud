@@ -27,7 +27,7 @@ variable "db_subnet_ids" {
 # 아키텍처 설계서_V2 6.2 RDS PostgreSQL + pgvector 스펙
 variable "engine_version" {
   type        = string
-  description = "PostgreSQL 엔진 버전 (문서상 [확정 필요]). 16.4는 이 계정/리전에 실제로 존재하지 않아 apply가 실패하므로, `aws rds describe-db-engine-versions`로 확인된 실제 가용 버전(16.9)을 기본값으로 둔다."
+  description = "PostgreSQL 엔진 버전 (문서상 [확정 필요], 이 계정/리전에 가용한 16.9를 기본값으로 둠)"
   default     = "16.9"
 }
 
@@ -83,14 +83,13 @@ variable "deletion_protection" {
 
 variable "backup_retention_period" {
   type        = number
-  description = "자동 백업 보존 기간(일). Free Tier 계정은 0(자동 백업 비활성화)이 아니면 CreateDBInstance가 FreeTierRestrictionError로 거부된다 — personal-test에서는 반드시 0으로 오버라이드."
+  description = "자동 백업 보존 기간(일). Free Tier 계정은 0이 아니면 CreateDBInstance가 FreeTierRestrictionError로 거부됨 — personal-test는 0으로 오버라이드."
   default     = 7
 }
 
-# Secrets Manager는 삭제해도 기본 30일 복구 대기(pending deletion) 상태로 남아, 같은
-# 이름으로 재생성하려는 다음 apply가 "이미 삭제 예정으로 스케줄된 시크릿" 에러로 막힌다.
-# personal-test처럼 자주 destroy/apply를 반복하는 환경에서는 0으로 둬서 즉시 완전
-# 삭제되게 한다 (실제 develop/prod에서는 실수 삭제 방지를 위해 기본값 유지 권장).
+# Secrets Manager는 삭제해도 기본 30일 복구 대기 상태로 남아 같은 이름으로 재생성이
+# 막힌다. destroy/apply를 자주 반복하는 환경에서는 0으로 둘 것 (develop/prod는 실수
+# 삭제 방지를 위해 기본값 유지 권장).
 variable "secret_recovery_window_in_days" {
   type        = number
   description = "DB Secret 삭제 시 복구 대기 기간(일). 0이면 즉시 완전 삭제(복구 불가)"
