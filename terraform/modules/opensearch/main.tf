@@ -55,6 +55,14 @@ resource "aws_opensearch_domain" "this" {
   domain_name    = "${var.project}-${var.env}-os"
   engine_version = var.engine_version
 
+  # 설계서_V2 6.6·Runbook 10장: OpenSearch는 일반 Destroy 대상에서 제외해야 하는
+  # 리소스다. aws_opensearch_domain에는 deletion_protection 인자가 없어서
+  # (Terraform AWS Provider 스키마로 확인함) prevent_destroy로 동일한 효과를 낸다.
+  # 프로젝트 종료 후 정리할 때는 이 블록을 지우거나 false로 바꿔 apply한 뒤 destroy한다.
+  lifecycle {
+    prevent_destroy = true
+  }
+
   cluster_config {
     instance_type  = var.instance_type
     instance_count = var.instance_count

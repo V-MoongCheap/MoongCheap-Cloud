@@ -61,18 +61,24 @@ variable "master_username" {
   default     = "moongcheap_admin"
 }
 
-# 개발 환경 기본값은 비용/반복 테스트 편의를 우선한다. prod는 envs/prod에서 반드시
-# skip_final_snapshot=false, deletion_protection=true로 오버라이드할 것.
+# skip_final_snapshot은 반복 테스트 편의를 우선해 기본 true로 둔다 (prod 도입 시
+# envs/prod에서 false로 오버라이드할 것 — 아직 prod 디렉토리 자체가 없음).
 variable "skip_final_snapshot" {
   type        = bool
   description = "삭제 시 최종 스냅샷 생략 여부"
   default     = true
 }
 
+# 설계서_V2 6.6·Runbook 10장: "일반 Destroy 과정에서 데이터가 삭제되지 않도록 보호"를
+# 요구하고, develop이 현재 유일한 운영 환경(네이밍 8.1)이라 "prod에서만 켠다" 전제가
+# 성립하지 않는다. 실수로 target 없이 destroy하거나 이 resource 블록을 지운 채
+# apply해도 RDS 삭제 API 호출 자체가 AWS에서 거부되도록 기본값을 true로 둔다.
+# 프로젝트 종료 후 실제로 정리할 때는 이 값을 false로 바꿔 apply한 뒤 destroy한다
+# (docs/2026-09-16-feature-status-and-review.md B-6 리뷰 참고).
 variable "deletion_protection" {
   type        = bool
-  description = "삭제 방지 활성화 여부"
-  default     = false
+  description = "삭제 방지 활성화 여부. 프로젝트 종료 정리 시에는 false로 바꿔 apply 후 destroy할 것"
+  default     = true
 }
 
 variable "backup_retention_period" {
