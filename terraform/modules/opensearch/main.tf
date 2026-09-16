@@ -48,11 +48,9 @@ resource "aws_secretsmanager_secret_version" "opensearch" {
 # VPC 내부 배치라 네트워크(SG)로 접근이 이미 격리되므로, IAM/Cognito 기반 세밀한 인증은
 # [확정 필요] 상태로 두고 우선 Fine-grained Access Control(마스터 계정)만 적용한다.
 #
-# domain_name은 AWS 제약상 최대 28자인데, naming_convention_V2.md가 정한 그대로
-# "moongcheap-{env}-opensearch"를 쓰면 develop(29자)조차 넘어가서 실제 apply 시
-# 바로 실패한다 (personal-test는 35자로 더 심함, terraform plan으로 실제 확인함).
-# 다른 리소스(SG/Secret)는 문서 규칙 그대로 두고, 글자 수 제약이 있는 domain_name만
-# "opensearch" -> "os"로 줄인다.
+# domain_name은 AWS 제약상 최대 28자라, naming_convention_V2.md 표기("moongcheap-{env}-
+# opensearch")를 그대로 쓰면 develop부터 초과한다. 글자 수 제약이 있는 domain_name만
+# "opensearch" -> "os"로 줄이고 다른 리소스(SG/Secret)는 문서 규칙 그대로 둔다.
 resource "aws_opensearch_domain" "this" {
   domain_name    = "${var.project}-${var.env}-os"
   engine_version = var.engine_version
@@ -100,10 +98,9 @@ resource "aws_opensearch_domain" "this" {
   }
 }
 
-# 실제 apply로 확인된 버그: SG(네트워크)는 정상 통과해도, 도메인에 리소스 기반 Access
-# Policy가 없으면 "User: anonymous is not authorized..."로 Fine-grained Access
-# Control(마스터 계정 Basic Auth)까지도 거부당한다. VPC 배치로 이미 네트워크가
-# 격리돼 있으므로(Security Group), Access Policy 자체는 넓게 열어도 안전하다.
+# SG로 네트워크를 막아도, 도메인에 리소스 기반 Access Policy가 없으면 Fine-grained
+# Access Control(마스터 계정 Basic Auth)까지 거부당한다. VPC 배치로 네트워크는 이미
+# 격리돼 있으므로 Access Policy 자체는 넓게 열어도 안전하다.
 resource "aws_opensearch_domain_policy" "this" {
   domain_name = aws_opensearch_domain.this.domain_name
 

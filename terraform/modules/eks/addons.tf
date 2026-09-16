@@ -33,7 +33,6 @@ resource "aws_eks_addon" "coredns" {
 
   depends_on = [
     aws_eks_node_group.fe,
-    aws_eks_node_group.be_ai,
   ]
 
   tags = {
@@ -51,7 +50,6 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
   depends_on = [
     aws_eks_node_group.fe,
-    aws_eks_node_group.be_ai,
   ]
 
   tags = {
@@ -59,9 +57,7 @@ resource "aws_eks_addon" "ebs_csi_driver" {
   }
 }
 
-# 아키텍처 설계서_V2 4.1: HPA 및 Pod/Node Resource Metric 수집용, EKS Add-on 표에 vpc-cni/
-# coredns와 같은 급의 "필수"로 명시되어 있다. AWS가 관리형 EKS Add-on으로 제공한다
-# (`aws eks describe-addon-versions --addon-name metrics-server`로 실재 확인).
+# 아키텍처 설계서_V2 4.1: HPA 및 Pod/Node Resource Metric 수집용 필수 Add-on.
 resource "aws_eks_addon" "metrics_server" {
   cluster_name                = aws_eks_cluster.this.name
   addon_name                  = "metrics-server"
@@ -70,7 +66,6 @@ resource "aws_eks_addon" "metrics_server" {
 
   depends_on = [
     aws_eks_node_group.fe,
-    aws_eks_node_group.be_ai,
   ]
 
   tags = {

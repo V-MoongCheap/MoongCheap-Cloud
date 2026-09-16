@@ -44,3 +44,12 @@ variable "db_private_subnet_cidrs" {
   description = "DB Private Subnet CIDR 목록 (RDS 배치용, AZ당 1개, 인터넷 아웃바운드 라우트 없음)"
   default     = ["10.0.21.0/24", "10.0.22.0/24"]
 }
+
+# Karpenter/ALB Controller 등 태그로 서브넷을 찾는 외부 컨트롤러용 확장 포인트.
+# aws_ec2_tag로 별도 관리하면 다른 apply에 이 리소스가 포함될 때마다 지워지므로,
+# 호출부에서 merge해서 각 Subnet 자신의 tags에 직접 포함시킨다.
+variable "tags" {
+  type        = map(string)
+  description = "모든 Subnet에 공통으로 추가할 태그"
+  default     = {}
+}
