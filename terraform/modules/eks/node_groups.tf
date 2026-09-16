@@ -10,6 +10,13 @@ resource "aws_eks_node_group" "fe" {
   subnet_ids      = var.web_subnet_ids
   instance_types  = [var.fe_instance_type]
 
+  # 네이밍 규약_V2 3.3 / 설계서_V2 4.2: gitops의 nodeSelector(workload: frontend)가
+  # 이 Label을 기준으로 스케줄링한다. Helm values는 이미 이 값을 참조하고 있어(feat/gitops
+  # 브랜치 확인), Node Group이 Label을 안 붙이면 FE Pod가 전부 Pending에 걸린다.
+  labels = {
+    workload = "frontend"
+  }
+
   launch_template {
     id      = aws_launch_template.fe.id
     version = aws_launch_template.fe.latest_version
