@@ -50,9 +50,9 @@ resource "aws_subnet" "was_private" {
   cidr_block        = var.was_private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
 
-  tags = {
+  tags = merge(var.was_private_subnet_tags, {
     Name = "${var.project}-${var.env}-was-${var.azs[count.index]}"
-  }
+  })
 }
 
 # DB Private Subnet (RDS 배치용 — 인터넷 아웃바운드 라우트 없음)
