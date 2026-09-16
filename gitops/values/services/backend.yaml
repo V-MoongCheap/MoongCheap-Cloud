@@ -1,0 +1,20 @@
+nameOverride: backend
+
+image:
+  repository: "REPLACE_ME/backend"
+
+containerPort: 8080
+
+service:
+  port: 80
+
+livenessProbe:
+  enabled: false
+  path: /actuator/health
+
+readinessProbe:
+  enabled: false
+  path: /actuator/health
+
+nodeSelector:
+  workload: backend-ai
