@@ -8,7 +8,7 @@ provider "aws" {
       ManagedBy   = "Terraform"
       Service     = "infra"
       Owner       = "cloud"
-      Environment = "develop"
+      Environment = "prod"
     }
   }
 }

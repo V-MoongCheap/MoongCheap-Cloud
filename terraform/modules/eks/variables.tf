@@ -16,7 +16,17 @@ variable "cluster_role_arn" {
 
 variable "subnet_ids" {
   type        = list(string)
-  description = "클러스터를 배치할 Subnet ID 목록 (Private Subnet, modules/vpc 출력값)"
+  description = "클러스터 컨트롤 플레인이 사용할 Subnet ID 목록 (WEB+WAS Private Subnet 합집합, modules/vpc 출력값)"
+}
+
+variable "web_subnet_ids" {
+  type        = list(string)
+  description = "FE Worker Node Group을 배치할 WEB Private Subnet ID 목록 (아키텍처 설계서_V2 4.2)"
+}
+
+variable "vpc_id" {
+  type        = string
+  description = "FE/BE·AI 전용 Security Group을 생성할 VPC ID (modules/vpc 출력값)"
 }
 
 variable "node_role_arn" {
@@ -24,22 +34,21 @@ variable "node_role_arn" {
   description = "EKS Worker Node용 IAM Role ARN (modules/iam 출력값)"
 }
 
+# 아키텍처 설계서_V2 4.2: FE는 t3.small 고정 Managed Node Group을 유지한다.
+# BE·AI(Backend/API/AI CPU/Jenkins/ArgoCD/Observability 통합)는 modules/karpenter가
+# 대체하므로 여기엔 인스턴스 타입 변수가 없다.
 variable "fe_instance_type" {
   type        = string
-  description = "Frontend 전용 Node Group 인스턴스 타입"
-  default     = "t3.large"
+  description = "FE Worker Node Group 인스턴스 타입"
+  default     = "t3.small"
 }
 
-variable "be_instance_type" {
-  type        = string
-  description = "Backend 전용 Node Group 인스턴스 타입"
-  default     = "t3.xlarge"
-}
-
-variable "ai_cpu_instance_type" {
-  type        = string
-  description = "AI CPU(API/Embedding/Cluster Matcher) 전용 Node Group 인스턴스 타입"
-  default     = "m7i.large"
+# Karpenter 등 태그로 SG를 찾는 외부 컨트롤러용 확장 포인트. be_ai SG에만 적용한다
+# (fe SG는 외부 컨트롤러가 찾을 이유가 없다).
+variable "be_ai_security_group_tags" {
+  type        = map(string)
+  description = "be_ai Security Group에 추가할 태그"
+  default     = {}
 }
 
 variable "cluster_admin_usernames" {
@@ -48,8 +57,22 @@ variable "cluster_admin_usernames" {
   default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-ys"]
 }
 
-variable "node_desired_size" {
+# 아키텍처 설계서_V2 4.2: FE Desired=2. Min/Max는 문서상 [확정 필요]로 남아있어
+# 우선 최소 비용으로 안전하게 기본값을 잡고, 팀 확정 후 조정한다.
+variable "fe_desired_size" {
   type        = number
-  description = "각 Node Group의 desired size (기본 1). 작은 인스턴스에서 Pod 여유 공간을 늘려 테스트할 때만 올린다."
+  description = "FE Worker Node Group desired size"
+  default     = 2
+}
+
+variable "fe_min_size" {
+  type        = number
+  description = "FE Worker Node Group min size"
   default     = 1
+}
+
+variable "fe_max_size" {
+  type        = number
+  description = "FE Worker Node Group max size"
+  default     = 2
 }

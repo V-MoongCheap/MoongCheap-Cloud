@@ -33,8 +33,6 @@ resource "aws_eks_addon" "coredns" {
 
   depends_on = [
     aws_eks_node_group.fe,
-    aws_eks_node_group.be,
-    aws_eks_node_group.ai_cpu,
   ]
 
   tags = {
@@ -52,11 +50,25 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
   depends_on = [
     aws_eks_node_group.fe,
-    aws_eks_node_group.be,
-    aws_eks_node_group.ai_cpu,
   ]
 
   tags = {
     Name = "${var.project}-${var.env}-ebs-csi-driver"
+  }
+}
+
+# 아키텍처 설계서_V2 4.1: HPA 및 Pod/Node Resource Metric 수집용 필수 Add-on.
+resource "aws_eks_addon" "metrics_server" {
+  cluster_name                = aws_eks_cluster.this.name
+  addon_name                  = "metrics-server"
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  depends_on = [
+    aws_eks_node_group.fe,
+  ]
+
+  tags = {
+    Name = "${var.project}-${var.env}-metrics-server"
   }
 }

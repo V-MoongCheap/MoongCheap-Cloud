@@ -1,56 +1,34 @@
-# 서비스별 전용 Node Group (FE/BE/AI CPU 분리)
-# node_role_arn에 필요한 정책(Worker/CNI/ECR ReadOnly)이 다 붙어있어야 노드가 join 가능하므로,
-# 이 모듈을 호출하는 쪽(envs/dev)에서 module.iam 전체에 대한 depends_on이 걸려 있어야 한다.
+# 아키텍처 설계서_V2 4.2: BE·AI는 부하에 따른 자동 확장이 필요해 Karpenter가 대체하고,
+# FE는 부하 변동이 크지 않아 Managed Node Group을 유지한다.
+#
+# node_role_arn에 필요한 정책이 다 붙어있어야 노드가 join 가능하므로, 호출부에서
+# module.iam 전체에 대한 depends_on이 걸려 있어야 한다.
 resource "aws_eks_node_group" "fe" {
   cluster_name    = aws_eks_cluster.this.name
-  node_group_name = "${var.project}-${var.env}-fe-node"
+  node_group_name = "${var.project}-${var.env}-fe-ng"
   node_role_arn   = var.node_role_arn
-  subnet_ids      = var.subnet_ids
+  subnet_ids      = var.web_subnet_ids
   instance_types  = [var.fe_instance_type]
 
+  # 네이밍 규약_V2 3.3 / 설계서_V2 4.2: gitops의 nodeSelector(workload: frontend)가
+  # 이 Label을 기준으로 스케줄링한다. Helm values는 이미 이 값을 참조하고 있어(feat/gitops
+  # 브랜치 확인), Node Group이 Label을 안 붙이면 FE Pod가 전부 Pending에 걸린다.
+  labels = {
+    workload = "frontend"
+  }
+
+  launch_template {
+    id      = aws_launch_template.fe.id
+    version = aws_launch_template.fe.latest_version
+  }
+
   scaling_config {
-    desired_size = var.node_desired_size
-    min_size     = 1
-    max_size     = 2
+    desired_size = var.fe_desired_size
+    min_size     = var.fe_min_size
+    max_size     = var.fe_max_size
   }
 
   tags = {
-    Name = "${var.project}-${var.env}-fe-node"
-  }
-}
-
-resource "aws_eks_node_group" "be" {
-  cluster_name    = aws_eks_cluster.this.name
-  node_group_name = "${var.project}-${var.env}-be-node"
-  node_role_arn   = var.node_role_arn
-  subnet_ids      = var.subnet_ids
-  instance_types  = [var.be_instance_type]
-
-  scaling_config {
-    desired_size = var.node_desired_size
-    min_size     = 1
-    max_size     = 2
-  }
-
-  tags = {
-    Name = "${var.project}-${var.env}-be-node"
-  }
-}
-
-resource "aws_eks_node_group" "ai_cpu" {
-  cluster_name    = aws_eks_cluster.this.name
-  node_group_name = "${var.project}-${var.env}-ai-cpu-node"
-  node_role_arn   = var.node_role_arn
-  subnet_ids      = var.subnet_ids
-  instance_types  = [var.ai_cpu_instance_type]
-
-  scaling_config {
-    desired_size = var.node_desired_size
-    min_size     = 1
-    max_size     = 2
-  }
-
-  tags = {
-    Name = "${var.project}-${var.env}-ai-cpu-node"
+    Name = "${var.project}-${var.env}-fe-ng"
   }
 }
