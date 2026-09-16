@@ -283,3 +283,168 @@ spec:
 `ingressClassName`과 실제 서브도메인/도메인은 `01_cloudflared_ingress`에서 이미 쓰고
 있는 값에 맞춰서 결정한다 (ArgoCD가 `cloud-learning.site` 도메인을 쓰고 있던 것과 동일한
 패턴).
+
+---
+
+## 8. Grafana 대시보드 프로비저닝 + 플러그인 버그 수정 (작업 기록)
+
+### 8.1 Grafana 13.x 플러그인 자동 업데이트 버그 수정
+
+**증상**: `kube-prometheus-stack-values.yaml`의 `grafana:` 블록에 대시보드 프로비저닝
+설정(8.2절)을 추가하고 배포했더니, 새로 추가한 대시보드뿐 아니라 차트가 기본 제공하던
+기존 대시보드까지 포함해 Grafana 전체에서 패널이 전부 "No data"로 뜨고, Data Sources
+페이지에서 Prometheus/Loki가 "Data source not found"로 표시됨.
+
+**원인**: 대시보드 설정 변경으로 Grafana Pod가 재시작되면서, 평소엔 드러나지 않던 별개의
+버그가 함께 트리거됨. Grafana 13.x는 파드가 뜰 때마다 `plugin.backgroundinstaller`라는
+백그라운드 프로세스가 Prometheus/Loki를 포함한 내장(bundled) 플러그인들을 grafana.com
+카탈로그에서 최신 버전으로 자동 업데이트하려고 시도하는데, 우리가 쓰는
+`grafana/grafana:13.2.1-distroless` 이미지는 플러그인 디렉터리
+(`/usr/share/grafana/data/plugins-bundled/`)가 read-only라서 이 시도가 매번
+`unlinkat ...: read-only file system` 에러로 실패한다. 이 실패 과정에서 플러그인
+등록 자체가 깨지면서 `Could not find plugin definition for data source`
+(datasource_type=loki, datasource_type=prometheus) 에러가 발생하고, 그 결과 이미
+정상적으로 프로비저닝되어 있던 데이터소스 설정까지 무효화되어 전체 대시보드가
+연쇄적으로 망가진 것으로 확인됨. 즉 대시보드 프로비저닝 자체의 문제가 아니라, 그로 인한
+재시작이 우연히 이 잠재 버그를 표면화시킨 것.
+
+**조치**: 이 자동 업데이트 시도 자체를 비활성화.
+
+```yaml
+grafana:
+  env:
+    GF_PLUGINS_PREINSTALL_DISABLED: "true"
+```
+
+적용 후 Data Sources 페이지 및 기존/신규 대시보드 모두 정상화됨을 확인.
+
+### 8.2 MoongCheap 대시보드 3종 프로비저닝 추가
+
+`kube-prometheus-stack-values.yaml`의 `grafana:` 블록에 아래 설정을 추가해서, 전용
+`MoongCheap` 폴더에 대시보드 3종을 자동 프로비저닝하도록 구성.
+
+```yaml
+grafana:
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'moongcheap'
+          orgId: 1
+          folder: 'MoongCheap'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/moongcheap
+  dashboards:
+    moongcheap:
+      k8s-pods-view:
+        gnetId: 15760
+        revision: 39
+        datasource: Prometheus
+      springboot-pods:
+        gnetId: 24605
+        revision: 1
+        datasource: Prometheus
+      loki-logs:
+        gnetId: 24574
+        revision: 2
+        datasource: Loki
+```
+
+각 대시보드는 grafana.com의 커뮤니티 대시보드를 `gnetId`로 참조하며, Grafana Pod의
+`download-dashboards` initContainer가 시작 시점에 해당 JSON을 내려받아 프로비저닝한다.
+
+| 대시보드 | gnetId | 용도 |
+| --- | --- | --- |
+| `k8s-pods-view` | 15760 (rev 39) | Kubernetes / Views / Pods — Pod 단위 리소스/상태 대시보드 |
+| `springboot-pods` | 24605 (rev 1) | Kubernetes Deployment Pods & Springboot — BE 팀이 `/actuator/prometheus`로 메트릭을 노출하기 전까지는 No data가 정상 |
+| `loki-logs` | 24574 (rev 2) | Logging Dashboard via Loki v3 — Alloy → Loki 로그 확인용 |
+
+**주의 (label 레이아웃)**: `k8s-pods-view` 대시보드의 상단 필터 변수 중 `job`은
+`kube_pod_info` 기준으로 정의되어 있어 항상 `kube-state-metrics`만 선택 가능하며,
+이는 정상 동작이다(변수를 잘못 만든 게 아님). 반면 `cluster` 변수는
+`label_values(..., cluster)` 쿼리로 정의되어 있는데, 지금 클러스터의 Prometheus에는
+`cluster` 레이블이 붙는 시계열이 전혀 없어 옵션이 비어 있다. `prometheus.prometheusSpec.externalLabels`에
+`cluster` 값을 추가해도 Prometheus의 `external_labels`는 federation/remote_write/Alertmanager
+등 **외부 통신에만** 붙는 레이블이라 로컬 쿼리(Grafana가 보는 값 포함)에는 반영되지
+않으므로 이 방법으로는 해결되지 않는다. 이 값은 현재 온프레미스 단일 클러스터에서는
+당장 막힌 문제가 아니라고 판단해 손대지 않고 그대로 둔 상태이며, AWS EKS로 옮길 때
+다시 검토한다.
+
+### 8.3 알림(Alertmanager / Grafana Alerting) — 구현 보류
+
+Discord Webhook 연동을 포함한 알림 규칙(Pod CrashLoopBackOff, Node NotReady, CPU/메모리
+임계치, PVC 사용량 임계치, GPU, PostgreSQL, Tailscale, Backup 등 팀 문서에 정리된 후보
+기준들) 구현은 이번 스프린트에서는 진행하지 않고 보류한다. 지금 온프레미스 테스트
+클러스터에는 GPU/PostgreSQL(KT Cloud)/Tailscale/Backup 등 후보 기준에 해당하는 컴포넌트
+자체가 아직 없어서 일부만 먼저 구현하면 다른 파트가 붙는 시점에 다시 설계해야 하는
+이중 작업이 발생한다. 따라서 **AWS EKS로 이전하고 다른 파트(백엔드/AI/보안 등)와의
+연동이 붙는 시점에, 그때 존재하는 컴포넌트 전체를 기준으로 알림 규칙을 한 번에
+설계·구현**하기로 결정함. 구현 방식은 팀 합의대로 Prometheus Alertmanager가 아니라
+**Grafana Alerting → Discord Webhook** (Grafana 자체 Unified Alerting 기능, secret은
+`moongcheap-develop-infra-discord-secret` 사용 예정)으로 진행한다.
+
+---
+
+## 9. Service `LoadBalancer` → `ClusterIP` 전환
+
+### 배경
+
+CI/CD 파이프라인 정합성 점검(`2026-09-16 CI/CD 정상 동작을 위한 수정·추가 총정리` §4-2)에서
+모니터링 스택의 Service들이 전부 `type: LoadBalancer`로 되어 있는 점이 지적됨. 설계서
+3.2절의 "AWS Load Balancer 사용하지 않음" 원칙 위반이며, AWS EKS 기준으로는 서브넷에
+`kubernetes.io/role/elb` 태그가 없어 CLB 생성이 실패하거나(추정), 생성되더라도 CLB
+5개 = 월 약 $90 비용 발생 + Prometheus/Loki가 인터넷에 그대로 노출되는 문제가 있음.
+7절에 정리된 "도메인 연결 후 Ingress 전환" 계획과 별개로, ClusterIP 전환 자체는 비용·보안
+문제라 먼저 처리하기로 함.
+
+### 대상 파일
+
+| 파일 | 필드 | 변경 |
+| --- | --- | --- |
+| `gitops/platform/monitoring/kube-prometheus-stack/values.yaml` | `prometheus.service.type` | `LoadBalancer` → `ClusterIP` |
+| `gitops/platform/monitoring/kube-prometheus-stack/values.yaml` | `grafana.service.type` | `LoadBalancer` → `ClusterIP` |
+| `gitops/platform/monitoring/loki/values.yaml` | `gateway.service.type` | `LoadBalancer` → `ClusterIP` |
+| `gitops/platform/observability/alloy-metrics/values.yaml` | `service.type` (top-level) | `LoadBalancer` → `ClusterIP` |
+| `gitops/platform/observability/alloy-logs/values.yaml` | `service.type` (top-level) | `LoadBalancer` → `ClusterIP` |
+
+```yaml
+# kube-prometheus-stack/values.yaml
+prometheus:
+  service:
+    type: ClusterIP
+grafana:
+  service:
+    type: ClusterIP
+```
+
+```yaml
+# loki/values.yaml
+gateway:
+  service:
+    type: ClusterIP
+```
+
+```yaml
+# alloy-metrics/values.yaml, alloy-logs/values.yaml
+service:
+  type: ClusterIP
+```
+
+### 주의 — 접근 경로 단절
+
+`ingress-nginx`/`cloudflared`가 아직 리포에 구성되어 있지 않음(CI/CD 점검 §4-3). 즉 이
+전환을 적용하는 즉시, 지금까지 쓰던 사설 IP 기반 접근 경로(예: Grafana `172.16.8.33`)가
+끊긴다. Ingress 전환(7절)이 완료되기 전까지는 아래처럼 `kubectl port-forward`로
+임시 접근한다.
+
+```shell
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
+kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
+kubectl port-forward -n monitoring svc/loki-gateway 3100:80
+```
+
+정식 접근 경로 복구는 7절의 Ingress 작업(ingress-nginx + cloudflared 배포, Grafana/Prometheus
+`ingress.enabled: true` 설정)이 끝난 뒤로 예정한다.
