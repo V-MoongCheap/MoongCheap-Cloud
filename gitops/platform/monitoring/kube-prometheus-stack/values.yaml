@@ -55,3 +55,5 @@ grafana:
       isDefault: false
   service:
     type: LoadBalancer 
+  env:
+    GF_PLUGINS_PREINSTALL_DISABLED: "true"
