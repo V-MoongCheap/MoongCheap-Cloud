@@ -16,4 +16,4 @@ namespace: infra
 helm:
   repoURL: https://charts.jenkins.io
   chart: jenkins
-  version: REPLACE_ME   # 배포 직전 최신 안정 버전으로 고정 (예: 5.x.x)
+  version: "5.9.62"   # values.yaml 구조를 이 버전 기준으로 helm template 검증함
