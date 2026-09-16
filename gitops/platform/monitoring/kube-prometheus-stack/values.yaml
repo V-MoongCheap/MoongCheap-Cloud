@@ -1,0 +1,57 @@
+# gitops/infra/monitoring/dev/kube-prometheus-stack-values.yaml
+#
+# chart: prometheus-community/kube-prometheus-stack
+# 릴리스 예: helm upgrade --install kube-prometheus-stack prometheus-community/kube-prometheus-stack -n monitoring -f this-file.yaml
+#
+# 참고: kube-state-metrics, kubelet/cAdvisor, kube-apiserver, coredns 등은
+# 이 차트가 기본으로 제공하는 ServiceMonitor/scrape 설정을 통해 Prometheus가
+# "직접" scrape 합니다. Alloy를 거치지 않습니다. Alloy는 딱 하나,
+# "호스트 OS 메트릭(구 node_exporter)"만 대체합니다.
+
+nodeExporter:
+  enabled: false # node_exporter 서브차트 비활성화. 대신 alloy-metrics DaemonSet이 그 역할을 함
+
+kubeStateMetrics:
+  enabled: true # 유지. Prometheus가 직접 scrape (Alloy와 무관)
+
+prometheus:
+  prometheusSpec:
+    # Alloy가 remote_write로 밀어넣는 걸 받으려면 반드시 켜야 함 (기본값 false)
+    enableRemoteWriteReceiver: true
+    retention: 15d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        memory: 1Gi
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+  service:
+    type: LoadBalancer 
+    
+alertmanager:
+  # 처음엔 꺼두고 나중에 알림 필요해지면 활성화해도 무방 (경량화 목적)
+  enabled: false
+
+grafana:
+  enabled: true
+  adminPassword: CHANGE_ME # 실제로는 sealed-secret / external-secret 등으로 주입 예정
+  persistence:
+    enabled: true
+    size: 5Gi
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      access: proxy
+      # release 이름을 "loki"로 설치했다는 가정. 실제 서비스명은
+      # kubectl get svc -n monitoring 으로 확인 후 맞춰서 수정
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      isDefault: false
+  service:
+    type: LoadBalancer 

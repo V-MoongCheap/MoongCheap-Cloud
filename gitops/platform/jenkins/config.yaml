@@ -1,0 +1,19 @@
+# gitops/platform/jenkins/config.yaml
+#
+# 준우님 GitOps README의 "Platform 자동 탐색" 규칙을 따르는 파일입니다.
+# 이 파일이 gitops/platform/**/config.yaml 경로에 존재하면
+# applicationset-platform.yaml이 자동으로 탐색해서 ArgoCD Application을 생성합니다.
+# (applicationset-platform.yaml 자체는 수정할 필요 없음)
+#
+# NOTE: Platform 구성요소는 dev/prod로 중복 설치하지 않고 클러스터 공통으로
+# 한 세트만 운영하므로(README 5절), name에 환경 식별자를 붙이지 않았습니다.
+# 네이밍 규약서 5.2절의 "jenkins-develop" 표기와는 다른데, 이는 Platform 컴포넌트의
+# 공통 운영 원칙(README 5절)을 우선 적용한 것입니다 — 팀 확인 후 필요하면 수정하세요.
+
+name: jenkins
+namespace: infra
+
+helm:
+  repoURL: https://charts.jenkins.io
+  chart: jenkins
+  version: REPLACE_ME   # 배포 직전 최신 안정 버전으로 고정 (예: 5.x.x)
