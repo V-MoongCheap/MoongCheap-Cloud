@@ -25,12 +25,18 @@ pipeline {
                 container('builder') {
                     sh 'echo "TODO: 실제 빌드 명령으로 교체"'
                 }
+                // 각 stage마다 agent{kubernetes{...}}를 새로 선언하고 있어서
+                // 같은 label이어도 stage마다 새 Pod가 뜸 → 여기서 만든 빌드 결과물이
+                // 다음 stage Pod에는 안 남아있음. stash로 잠깐 보관해뒀다가
+                // Test/Build&Push 단계에서 unstash로 꺼내 씀.
+                stash name: 'build-output', includes: '**', excludes: '.git/**'
             }
         }
 
         stage('Test') {
             agent { kubernetes { label BUILD_LABEL } }
             steps {
+                unstash 'build-output'
                 container('builder') {
                     sh 'echo "TODO: 실제 테스트 명령으로 교체"'
                 }
@@ -40,18 +46,19 @@ pipeline {
         stage('Build & Push Image to ECR') {
             agent { kubernetes { label BUILD_LABEL } }
             steps {
-                container('builder') {
-                    withCredentials([
-                        string(credentialsId: 'aws-region', variable: 'AWS_REGION')
-                    ]) {
-                        sh """
-                          aws ecr get-login-password --region ${AWS_REGION} \
-                            | docker login --username AWS --password-stdin ${ECR_REGISTRY}
-
-                          docker build -t ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG} .
-                          docker push ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
-                        """
-                    }
+                unstash 'build-output'
+                container('kaniko') {
+                    // docker build / docker push 대신 Kaniko 사용.
+                    // 이 Pod 안에는 Docker 데몬이 없어서 docker 명령 자체가 없음.
+                    // ECR 로그인도 따로 필요 없음 — jenkins-sa에 연결된 IRSA 권한을
+                    // Kaniko가 AWS 자격증명 체인을 통해 자동으로 사용함
+                    // (설계서 원칙: 장기 Access Key 미사용).
+                    sh """
+                      /kaniko/executor \
+                        --context=`pwd` \
+                        --dockerfile=`pwd`/Dockerfile \
+                        --destination=${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
+                    """
                 }
             }
         }
@@ -63,20 +70,25 @@ pipeline {
                     withCredentials([
                         usernamePassword(credentialsId: 'gitops-repo-push', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')
                     ]) {
-                        sh """
-                          git clone https://${GIT_USER}:${GIT_TOKEN}@${GITOPS_REPO_URL.replace('https://', '')} gitops-repo
+                        // 큰따옴표(""") 대신 작은따옴표(''')를 써서, GIT_USER/GIT_TOKEN 같은
+                        // 시크릿 값이 Groovy 단계에서 미리 스크립트 텍스트에 박히지 않고
+                        // 셸이 실행되는 시점에 환경변수로 채워지도록 함 (시크릿 노출 방지).
+                        sh '''
+                          set -e
+                          REPO_HOST="${GITOPS_REPO_URL#https://}"
+                          git clone "https://${GIT_USER}:${GIT_TOKEN}@${REPO_HOST}" gitops-repo
                           cd gitops-repo
 
                           OVERRIDE_FILE="gitops/values/overrides/${ENVIRONMENT}/${SERVICE_NAME}.yaml"
 
-                          yq -i '.image.tag = "${IMAGE_TAG}"' "\$OVERRIDE_FILE"
+                          yq -i ".image.tag = \"${IMAGE_TAG}\"" "$OVERRIDE_FILE"
 
                           git config user.name "jenkins-ci"
                           git config user.email "jenkins-ci@moongcheap.local"
-                          git add "\$OVERRIDE_FILE"
+                          git add "$OVERRIDE_FILE"
                           git commit -m "ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}"
                           git push origin develop
-                        """
+                        '''
                     }
                 }
             }
