@@ -57,3 +57,29 @@ grafana:
     type: LoadBalancer 
   env:
     GF_PLUGINS_PREINSTALL_DISABLED: "true"
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'moongcheap'
+          orgId: 1
+          folder: 'MoongCheap'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/moongcheap
+  dashboards:
+    moongcheap:
+      k8s-pods-view:
+        gnetId: 15760
+        revision: 39
+        datasource: Prometheus
+      springboot-pods:
+        gnetId: 24605
+        revision: 1
+        datasource: Prometheus
+      loki-logs:
+        gnetId: 24574
+        revision: 2
+        datasource: Loki
