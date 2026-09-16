@@ -18,14 +18,19 @@ pipeline {
         // AI처럼 레포 안에 기능별 Dockerfile이 여러 개 있는 경우
         // (예: Dockerfile.demand-clustering) 이 값만 바꿔서 쓰면 됨.
         DOCKERFILE_PATH = 'Dockerfile'
-        GIT_SHORT_SHA = "${env.GIT_COMMIT?.take(7)}"
-        IMAGE_TAG     = "${ENVIRONMENT}-${GIT_SHORT_SHA}"
     }
 
     stages {
         stage('Build') {
             agent { kubernetes { label BUILD_LABEL } }
             steps {
+                script {
+                    // environment{} 블록은 checkout 이전에 평가돼서 GIT_COMMIT이
+                    // 비어있을 수 있음. 그래서 checkout이 끝난 이 시점(첫 stage)에서
+                    // 계산해야 IMAGE_TAG에 "develop-null" 같은 값이 찍히는 걸 방지함.
+                    env.GIT_SHORT_SHA = env.GIT_COMMIT.take(7)
+                    env.IMAGE_TAG     = "${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
+                }
                 container('builder') {
                     sh 'echo "TODO: 실제 빌드 명령으로 교체"'
                 }
