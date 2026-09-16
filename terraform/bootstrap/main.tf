@@ -34,3 +34,17 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   ignore_public_acls      = true
   restrict_public_buckets = true
 }
+
+# 계정 전체 총 사용 금액 하나만 감시하면 되는 리소스라 develop/prod 어느 한쪽에
+# 속하지 않는다. envs/*에서 각각 호출하면 env 변수가 없는 budget-alert 모듈 특성상
+# 이름 충돌이 나고, develop→prod 전환 중 예산 감시가 끊기므로 여기서 한 번만 만든다.
+module "discord_secret" {
+  source    = "../modules/secrets"
+  secret_id = "moongcheap-develop-infra-discord-secret"
+}
+
+module "budget_alert" {
+  source = "../modules/budget-alert"
+
+  discord_webhook_url = module.discord_secret.secret_string
+}
