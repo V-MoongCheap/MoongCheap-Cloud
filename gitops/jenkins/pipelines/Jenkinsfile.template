@@ -76,10 +76,20 @@ pipeline {
                         sh '''
                           set -e
                           REPO_HOST="${GITOPS_REPO_URL#https://}"
+                          BRANCH_NAME="ci/update-${SERVICE_NAME}-${IMAGE_TAG}"
+
+                          # develop은 Ruleset(protect-develop)으로 직접 Push가 막혀있어서
+                          # 별도 작업 브랜치를 만들어 그 브랜치로 Push함.
                           git clone "https://${GIT_USER}:${GIT_TOKEN}@${REPO_HOST}" gitops-repo
                           cd gitops-repo
+                          git checkout -b "$BRANCH_NAME"
 
                           OVERRIDE_FILE="gitops/values/overrides/${ENVIRONMENT}/${SERVICE_NAME}.yaml"
+
+                          # node:20 이미지엔 yq가 없어서, 실행 시점에 고정 버전으로 직접 설치
+                          YQ_VERSION="v4.44.3"
+                          curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
+                          chmod +x /usr/local/bin/yq
 
                           yq -i ".image.tag = \"${IMAGE_TAG}\"" "$OVERRIDE_FILE"
 
@@ -87,7 +97,16 @@ pipeline {
                           git config user.email "jenkins-ci@moongcheap.local"
                           git add "$OVERRIDE_FILE"
                           git commit -m "ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}"
-                          git push origin develop
+                          git push origin "$BRANCH_NAME"
+
+                          # develop으로 향하는 PR을 GitHub API로 자동 생성 (직접 병합이 아니라 PR만 만듦)
+                          GITOPS_API_REPO="${REPO_HOST#github.com/}"
+                          GITOPS_API_REPO="${GITOPS_API_REPO%.git}"
+                          curl -s -X POST \
+                            -H "Authorization: token ${GIT_TOKEN}" \
+                            -H "Accept: application/vnd.github+json" \
+                            "https://api.github.com/repos/${GITOPS_API_REPO}/pulls" \
+                            -d "{\"title\":\"ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}\",\"head\":\"${BRANCH_NAME}\",\"base\":\"develop\"}"
                         '''
                     }
                 }
