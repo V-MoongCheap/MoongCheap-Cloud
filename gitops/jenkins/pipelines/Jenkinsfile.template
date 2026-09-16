@@ -14,6 +14,10 @@ pipeline {
         ECR_REGISTRY   = '<AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com'
         GITOPS_REPO_URL = 'https://github.com/V-MoongCheap/MoongCheap-Cloud.git'
         ENVIRONMENT    = 'develop'
+        // BE/FE는 기본값 'Dockerfile' 그대로 사용.
+        // AI처럼 레포 안에 기능별 Dockerfile이 여러 개 있는 경우
+        // (예: Dockerfile.demand-clustering) 이 값만 바꿔서 쓰면 됨.
+        DOCKERFILE_PATH = 'Dockerfile'
         GIT_SHORT_SHA = "${env.GIT_COMMIT?.take(7)}"
         IMAGE_TAG     = "${ENVIRONMENT}-${GIT_SHORT_SHA}"
     }
@@ -56,7 +60,7 @@ pipeline {
                     sh """
                       /kaniko/executor \
                         --context=`pwd` \
-                        --dockerfile=`pwd`/Dockerfile \
+                        --dockerfile=`pwd`/${DOCKERFILE_PATH} \
                         --destination=${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
                     """
                 }
