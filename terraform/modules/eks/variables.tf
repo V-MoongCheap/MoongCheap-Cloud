@@ -24,11 +24,6 @@ variable "web_subnet_ids" {
   description = "FE Worker Node Group을 배치할 WEB Private Subnet ID 목록 (아키텍처 설계서_V2 4.2)"
 }
 
-variable "was_subnet_ids" {
-  type        = list(string)
-  description = "BE·AI Worker Node Group을 배치할 WAS Private Subnet ID 목록 (아키텍처 설계서_V2 4.2)"
-}
-
 variable "vpc_id" {
   type        = string
   description = "FE/BE·AI 전용 Security Group을 생성할 VPC ID (modules/vpc 출력값)"
@@ -39,18 +34,21 @@ variable "node_role_arn" {
   description = "EKS Worker Node용 IAM Role ARN (modules/iam 출력값)"
 }
 
-# 아키텍처 설계서_V2 4.2: FE는 t3.small, BE·AI(Backend/API/AI CPU/Jenkins/ArgoCD/Observability
-# 전부 통합)는 t3.large. 별도의 AI CPU 전용 Node Group은 두지 않는다.
+# 아키텍처 설계서_V2 4.2: FE는 t3.small 고정 Managed Node Group을 유지한다.
+# BE·AI(Backend/API/AI CPU/Jenkins/ArgoCD/Observability 통합)는 modules/karpenter가
+# 대체하므로 여기엔 인스턴스 타입 변수가 없다.
 variable "fe_instance_type" {
   type        = string
   description = "FE Worker Node Group 인스턴스 타입"
   default     = "t3.small"
 }
 
-variable "be_ai_instance_type" {
-  type        = string
-  description = "BE·AI Worker Node Group 인스턴스 타입 (Backend/API/AI CPU/Jenkins/ArgoCD/Observability 통합 배치)"
-  default     = "t3.large"
+# Karpenter 등 태그로 SG를 찾는 외부 컨트롤러용 확장 포인트. be_ai SG에만 적용한다
+# (fe SG는 외부 컨트롤러가 찾을 이유가 없다).
+variable "be_ai_security_group_tags" {
+  type        = map(string)
+  description = "be_ai Security Group에 추가할 태그"
+  default     = {}
 }
 
 variable "cluster_admin_usernames" {
@@ -77,24 +75,4 @@ variable "fe_max_size" {
   type        = number
   description = "FE Worker Node Group max size"
   default     = 2
-}
-
-# 아키텍처 설계서_V2 4.2: BE·AI Max=4는 "현재 비용 산정 기준 상한"으로 문서에 명시된 값.
-# Desired/Min은 [확정 필요] 상태라 우선 1로 시작한다.
-variable "be_ai_desired_size" {
-  type        = number
-  description = "BE·AI Worker Node Group desired size"
-  default     = 1
-}
-
-variable "be_ai_min_size" {
-  type        = number
-  description = "BE·AI Worker Node Group min size"
-  default     = 1
-}
-
-variable "be_ai_max_size" {
-  type        = number
-  description = "BE·AI Worker Node Group max size (비용 산정 기준 상한)"
-  default     = 4
 }
