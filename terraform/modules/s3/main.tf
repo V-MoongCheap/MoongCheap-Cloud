@@ -5,6 +5,15 @@
 resource "aws_s3_bucket" "object" {
   bucket = "${var.project}-${var.env}-object"
 
+  # 설계서_V2 6.6·Runbook 10장: S3는 일반 Destroy 대상에서 제외해야 하는 Stateful
+  # 리소스다. aws_s3_bucket에는 RDS 같은 deletion_protection 인자가 없어서(Terraform
+  # AWS Provider 스키마로 확인함) prevent_destroy로 동일한 효과를 낸다. 프로젝트 종료 후
+  # 실제로 정리할 때는 이 블록을 지우거나 false로 바꿔 apply한 뒤 destroy한다
+  # (docs/2026-09-16-feature-status-and-review.md B-6 리뷰 참고).
+  lifecycle {
+    prevent_destroy = true
+  }
+
   tags = {
     Name = "${var.project}-${var.env}-object"
   }
