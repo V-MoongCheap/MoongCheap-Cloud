@@ -35,16 +35,10 @@ resource "aws_s3_bucket_public_access_block" "tfstate" {
   restrict_public_buckets = true
 }
 
-# 계정 전체 총 사용 금액 하나만 감시하면 되는 리소스라 develop/prod 어느 한쪽에
-# 속하지 않는다. envs/*에서 각각 호출하면 env 변수가 없는 budget-alert 모듈 특성상
-# 이름 충돌이 나고, develop→prod 전환 중 예산 감시가 끊기므로 여기서 한 번만 만든다.
-module "discord_secret" {
-  source    = "../modules/secrets"
-  secret_id = "moongcheap-develop-infra-discord-secret"
-}
-
-module "budget_alert" {
-  source = "../modules/budget-alert"
-
-  discord_webhook_url = module.discord_secret.secret_string
-}
+# budget_alert/discord_secret 모듈은 여기 두지 않는다.
+# 이 디렉토리는 순환 문제(버킷 자체를 만드는 코드) 때문에 remote backend를 못 쓰고
+# state를 Git에 커밋하는 예외 대상인데, Discord Webhook URL 같은 Secret 값을 쓰는
+# 리소스를 여기서 apply하면 그 값이 state에 평문으로 박힌 채 커밋된다
+# (sensitive=true는 CLI 출력만 가릴 뿐 state 파일 내용은 못 가림 — 2026-09-16 실제로
+# 겪은 사고: docs/2026-09-16-feature-status-and-review.md 참고).
+# 그래서 remote backend를 쓰는 envs/develop/main.tf로 옮겼다.
