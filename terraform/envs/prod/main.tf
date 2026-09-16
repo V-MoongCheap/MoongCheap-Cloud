@@ -3,7 +3,7 @@ module "vpc" {
 
   env = "prod"
 
-  tags = {
+  was_private_subnet_tags = {
     "karpenter.sh/discovery" = "moongcheap-prod-eks"
   }
 }

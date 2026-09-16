@@ -26,9 +26,9 @@ resource "aws_subnet" "public" {
   availability_zone       = var.azs[count.index]
   map_public_ip_on_launch = true
 
-  tags = merge(var.tags, {
+  tags = {
     Name = "${var.project}-${var.env}-public-${var.azs[count.index]}"
-  })
+  }
 }
 
 # WEB Private Subnet (FE Worker Node Group 배치용)
@@ -38,9 +38,9 @@ resource "aws_subnet" "web_private" {
   cidr_block        = var.web_private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
 
-  tags = merge(var.tags, {
+  tags = {
     Name = "${var.project}-${var.env}-web-${var.azs[count.index]}"
-  })
+  }
 }
 
 # WAS Private Subnet (BE·AI Worker Node Group 배치용)
@@ -50,7 +50,7 @@ resource "aws_subnet" "was_private" {
   cidr_block        = var.was_private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
 
-  tags = merge(var.tags, {
+  tags = merge(var.was_private_subnet_tags, {
     Name = "${var.project}-${var.env}-was-${var.azs[count.index]}"
   })
 }
@@ -62,9 +62,9 @@ resource "aws_subnet" "db_private" {
   cidr_block        = var.db_private_subnet_cidrs[count.index]
   availability_zone = var.azs[count.index]
 
-  tags = merge(var.tags, {
+  tags = {
     Name = "${var.project}-${var.env}-db-${var.azs[count.index]}"
-  })
+  }
 }
 
 # Public Route Table -> IGW
