@@ -3,8 +3,7 @@ module "vpc" {
 
   env = "develop"
 
-  # WAS Private Subnet에 Karpenter discovery 태그 (modules/vpc/variables.tf 참고).
-  tags = {
+  was_private_subnet_tags = {
     "karpenter.sh/discovery" = "moongcheap-develop-eks"
   }
 }

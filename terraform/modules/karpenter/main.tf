@@ -40,18 +40,125 @@ resource "aws_iam_role" "controller" {
 # AWS 공식 Karpenter Controller Policy를 이 프로젝트 계정/리전/클러스터에 맞게 축약 적용.
 # iam:PassRole은 아래에서 만드는 노드용 Instance Profile의 Role로만 범위를 좁힌다.
 data "aws_iam_policy_document" "controller" {
+  # RunInstances/CreateFleet은 image·security-group·subnet·launch-template도 함께
+  # 참조하는데, 이 리소스들은 이번 호출로 새로 생성/태깅되는 대상이 아니라서(이미
+  # 존재하는 리소스를 참조만 함) RequestTag 컨텍스트 자체가 없다. 여기에 RequestTag
+  # 조건을 걸면 항상 거짓으로 평가되어 매번 거부된다
+  # launch-template 자신을 "생성"하는 CreateLaunchTemplate 액션에는 태그 조건이
+  # 그대로 필요하므로 아래 AllowScopedEC2InstanceActionsWithTags에 남겨둔다.
   statement {
     sid    = "AllowScopedEC2InstanceActions"
     effect = "Allow"
     actions = [
       "ec2:RunInstances",
       "ec2:CreateFleet",
-      "ec2:CreateLaunchTemplate",
-      "ec2:CreateTags",
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}::image/*",
+      "arn:aws:ec2:${data.aws_region.current.name}::snapshot/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:security-group/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:subnet/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+    ]
   }
 
+  # Karpenter는 이번 호출로 실제 생성/태깅되는 리소스(fleet/instance/volume/
+  # network-interface, 그리고 CreateLaunchTemplate 자체가 만드는 launch-template)에는
+  # 항상 kubernetes.io/cluster/<클러스터>=owned, karpenter.sh/nodepool 태그를 자동으로
+  # 붙인다. RequestTag 조건으로 이 태그가 없는 생성 요청은 막아 다른 클러스터/용도로
+  # 이 Role이 오용되지 않게 한다.
+  statement {
+    sid    = "AllowScopedEC2InstanceActionsWithTags"
+    effect = "Allow"
+    actions = [
+      "ec2:RunInstances",
+      "ec2:CreateFleet",
+      "ec2:CreateLaunchTemplate",
+    ]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:fleet/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/karpenter.sh/nodepool"
+      values   = ["*"]
+    }
+  }
+
+  statement {
+    sid    = "AllowScopedResourceCreationTagging"
+    effect = "Allow"
+    actions = ["ec2:CreateTags"]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:fleet/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:volume/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:network-interface/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:RequestTag/kubernetes.io/cluster/${var.cluster_name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:RequestTag/karpenter.sh/nodepool"
+      values   = ["*"]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "ec2:CreateAction"
+      values   = ["RunInstances", "CreateFleet", "CreateLaunchTemplate"]
+    }
+  }
+
+  # Karpenter는 노드를 launch한 "이후"에도 Name·karpenter.sh/nodeclaim 태그를 별도
+  # CreateTags 호출로 덧붙인다. 이 호출은 ec2:CreateAction 컨텍스트가 없는 독립
+  # 호출이라 위 AllowScopedResourceCreationTagging(RequestTag 기반)로는 못 걸러지고,
+  # 라이브 테스트에서 실제 UnauthorizedOperation으로 확인됨. 이미 이 클러스터가
+  # 소유(owned)한 인스턴스에 한해서만, 그것도 정해진 태그 키만 덧붙일 수 있게 한다.
+  statement {
+    sid       = "AllowScopedResourceTagging"
+    effect    = "Allow"
+    actions   = ["ec2:CreateTags"]
+    resources = ["arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}"
+      values   = ["owned"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:ResourceTag/karpenter.sh/nodepool"
+      values   = ["*"]
+    }
+
+    condition {
+      test     = "ForAllValues:StringEquals"
+      variable = "aws:TagKeys"
+      values   = ["karpenter.sh/nodeclaim", "Name"]
+    }
+  }
+
+  # 종료/삭제는 이 클러스터가 소유(owned)한 리소스로만 범위를 좁혀, 계정 내
+  # 다른 EC2/Launch Template을 이 Role이 건드릴 수 없게 한다.
   statement {
     sid    = "AllowScopedEC2InstanceTermination"
     effect = "Allow"
@@ -59,7 +166,16 @@ data "aws_iam_policy_document" "controller" {
       "ec2:TerminateInstances",
       "ec2:DeleteLaunchTemplate",
     ]
-    resources = ["*"]
+    resources = [
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:instance/*",
+      "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:launch-template/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:ResourceTag/kubernetes.io/cluster/${var.cluster_name}"
+      values   = ["owned"]
+    }
   }
 
   statement {
@@ -114,6 +230,18 @@ data "aws_iam_policy_document" "controller" {
     sid       = "AllowListInstanceProfiles"
     effect    = "Allow"
     actions   = ["iam:ListInstanceProfiles"]
+    resources = ["*"]
+  }
+
+  # EC2NodeClass 삭제 시 Karpenter의 종료 finalizer가 (이 프로젝트가 쓰지 않는)
+  # spec.role 방식용 자동 생성 Instance Profile이 남아있는지 항상 먼저 확인한다.
+  # 이 권한이 없으면 GetInstanceProfile이 AccessDenied로 실패해 finalizer가 절대
+  # 안 끝나고 EC2NodeClass 삭제가 무한 대기에 빠진다 (라이브 테스트로 실제 확인됨).
+  # 읽기 전용 조회이므로 실제 삭제 권한(DeleteInstanceProfile 등)까지는 주지 않는다.
+  statement {
+    sid       = "AllowGetInstanceProfile"
+    effect    = "Allow"
+    actions   = ["iam:GetInstanceProfile"]
     resources = ["*"]
   }
 }
