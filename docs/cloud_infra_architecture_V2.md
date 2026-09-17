@@ -371,7 +371,7 @@ Managed Node Group 대신 Karpenter가 Pod의 `requests`에 맞춰 EC2를 직접
 | vCPU / Memory    | `2 vCPU / 8 GiB`                                                                        |
 | Capacity Type    | On-Demand                                                                               |
 | 최소 Node 수        | `0` (Pod 없으면 Karpenter가 회수)                                                             |
-| 상한               | NodePool `spec.limits` — `t3.large ×4` 상당(`cpu: 8`, `memory: 32Gi`) *(비용 산정 기준)*           |
+| 상한               | NodePool `spec.limits` — **`t3.large ×4` 상당(`cpu: 8`, `memory: 32Gi`), 확정(2026-09-17)** |
 | Node Label       | `workload: backend-ai` (NodePool `spec.template.metadata.labels`)                        |
 | Subnet           | WAS Private Subnet (`karpenter.sh/discovery` 태그로 탐색)                                    |
 | Security Group   | BE·AI SG + EKS Cluster SG (둘 다 `karpenter.sh/discovery` 태그; Cluster SG 없으면 노드 등록 실패)    |
@@ -379,7 +379,7 @@ Managed Node Group 대신 Karpenter가 Pod의 `requests`에 맞춰 EC2를 직접
 | Public IP        | 사용하지 않음                                                                                 |
 | Root Volume      | **20 GiB EBS**                                                                          |
 
-> `t3.large ×4`는 상시 실행되는 고정 Node 수가 아니라 **현재 비용 산정에서 사용한 최대 구성 기준**이며 NodePool `limits`로 반영한다. consolidation·AZ 정책은 각 파트의 Pod Request와 부하 테스트 결과를 기준으로 확정한다(4.5).
+> **[확정 2026-09-17]** `t3.large ×4`(`cpu: 8`, `memory: 32Gi`)는 상시 실행되는 고정 Node 수가 아니라 NodePool `spec.limits`의 **확정 상한값**이다 — 비용 산정 기준값을 그대로 상한으로 채택했다. consolidation·AZ 정책은 여전히 각 파트의 Pod Request와 부하 테스트 결과를 기준으로 확정한다(4.5). limits는 향후 부하 테스트에서 부족/과다로 판명되면 재조정할 수 있으나, 그 전까지는 이 값이 gitops NodePool 작성(D-12)의 기준이다.
 
 > **책임 경계**: Karpenter가 필요로 하는 AWS 측 자원(Controller IRSA Role, Node Role, Instance Profile, EKS Access Entry, discovery 태그)은 Terraform `modules/karpenter`가, Karpenter Helm 설치와 NodePool/EC2NodeClass(Kubernetes CR)는 `gitops/platform/karpenter/`가 담당한다(8.6). Karpenter가 띄운 EC2는 Terraform State에 없으므로 **`terraform destroy` 전에 `terraform/scripts/pre-destroy-karpenter.sh`로 NodeClaim을 먼저 정리**해야 한다.
 
@@ -495,7 +495,7 @@ Terraform 및 Helm 코드 작성 전에 다음 값을 최종 확정해야 한다
 | EKS              | Cluster Endpoint Public / Private Access 정책     |
 | Network          | EKS가 사용할 AZ                                     |
 | FE Node Group    | Min / Max Size                                  |
-| BE·AI (Karpenter) | NodePool `limits` 확정값 / consolidation / AZ 고정 정책 |
+| BE·AI (Karpenter) | NodePool consolidation 정책 / AZ 고정 정책 *(limits는 4.2절에서 확정: `cpu: 8`, `memory: 32Gi`)* |
 | Node             | Root EBS Volume 타입 *(크기: 20 GiB 확정)*             |
 | cloudflared      | Node Group / Replica                            |
 | Scaling          | HPA 적용 대상 및 Threshold                           |

@@ -861,7 +861,7 @@ Router 관련 Naming은 폐기한다.
 | --- | --- | --- |
 | 1 | VPC / Subnet CIDR 및 AZ | Terraform Network |
 | 2 | Kubernetes Version / EKS Endpoint 정책 | EKS Terraform |
-| 3 | FE Node Group Min / Max, BE·AI Karpenter NodePool `limits`·consolidation | EKS Scaling |
+| 3 | FE Node Group Min / Max, BE·AI Karpenter NodePool consolidation·AZ 정책 *(limits는 확정: cpu 8/mem 32Gi, 설계서 4.2)* | EKS Scaling |
 | 4 | FE / BE / AI Port, Probe, Resource, Replica | Helm |
 | 5 | HPA 정책 (Node Scaling은 Karpenter로 확정 — 2026-09-17) | Helm |
 | 6 | RDS PostgreSQL Version / DB Name / Username | Terraform / Secret |
