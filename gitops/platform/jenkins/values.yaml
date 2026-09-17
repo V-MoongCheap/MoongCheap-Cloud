@@ -95,11 +95,14 @@ controller:
                         resourceRequestCpu: "500m"
                         resourceRequestMemory: "1Gi"
 
+  # ingress:
+  #   enabled: true
+  #   hostName: "jenkins.[배포후_도메인_기입]"
+  #   annotations:
+  #     kubernetes.io/ingress.class: "nginx"
+
   ingress:
-    enabled: true
-    hostName: "jenkins.[배포후_도메인_기입]"
-    annotations:
-      kubernetes.io/ingress.class: "nginx"
+    enabled: false
 
 # NOTE: serviceAccount/persistence는 controller: 안이 아니라 최상위 키여야
 # 실제로 반영된다는 걸 helm template 검증으로 확인함 (5.9.62 기준)
