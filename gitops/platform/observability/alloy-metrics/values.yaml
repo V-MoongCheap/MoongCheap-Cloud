@@ -8,7 +8,7 @@
 # 아니라 "자기 자신의 호스트"만 보기 때문에, kube-state-metrics 같은 걸 여기서 긁지 않는 한
 # clustering이 없어도 중복 수집 문제가 생기지 않음.
 service:
-  type: LoadBalancer
+  type: ClusterIP # LoadBalancer (on-premise 테스트 시)
   
 controller:
   type: daemonset

@@ -47,7 +47,7 @@ backend:
 gateway:
   enabled: true # Alloy/Grafana가 이 gateway 서비스 하나로 push/query 하면 됨
   service:
-    type: LoadBalancer
+    type: ClusterIP # LoadBalancer (on-premise 테스트 시)
 test:
   enabled: false
 monitoring:

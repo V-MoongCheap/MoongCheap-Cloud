@@ -7,7 +7,7 @@
 # Kubernetes API를 통해 tail(promtail처럼 /var/log/pods 를 직접 마운트해서 읽는 방식이 아님)
 # 해서 Loki로 push. Promtail의 역할을 그대로 대체.
 service:
-  type: LoadBalancer
+  type: ClusterIP # LoadBalancer (on-premise 테스트 시)
   
 controller:
   type: daemonset

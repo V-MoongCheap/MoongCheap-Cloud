@@ -33,7 +33,7 @@ prometheus:
             requests:
               storage: 20Gi
   service:
-    type: LoadBalancer 
+    type: ClusterIP # LoadBalancer (on-premise 테스트 시)
     
 alertmanager:
   # 처음엔 꺼두고 나중에 알림 필요해지면 활성화해도 무방 (경량화 목적)
@@ -54,4 +54,32 @@ grafana:
       url: http://loki-gateway.monitoring.svc.cluster.local
       isDefault: false
   service:
-    type: LoadBalancer 
+    type: ClusterIP # LoadBalancer (on-premise 테스트 시)
+  env:
+    GF_PLUGINS_PREINSTALL_DISABLED: "true"
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: 'moongcheap'
+          orgId: 1
+          folder: 'MoongCheap'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/moongcheap
+  dashboards:
+    moongcheap:
+      k8s-pods-view:
+        gnetId: 15760
+        revision: 39
+        datasource: Prometheus
+      springboot-pods:
+        gnetId: 24605
+        revision: 1
+        datasource: Prometheus
+      loki-logs:
+        gnetId: 24574
+        revision: 2
+        datasource: Loki
