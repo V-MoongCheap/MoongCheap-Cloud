@@ -1,7 +1,7 @@
 nameOverride: backend
 
 image:
-  repository: "REPLACE_ME/backend"
+  repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/backend"
 
 containerPort: 8080
 
