@@ -61,8 +61,8 @@ variable "master_username" {
   default     = "moongcheap_admin"
 }
 
-# skip_final_snapshot은 반복 테스트 편의를 우선해 기본 true로 둔다 (prod 도입 시
-# envs/prod에서 false로 오버라이드할 것 — 아직 prod 디렉토리 자체가 없음).
+# skip_final_snapshot은 반복 테스트 편의를 우선해 기본 true로 둔다
+# (envs/prod/main.tf에서 false로 오버라이드함).
 variable "skip_final_snapshot" {
   type        = bool
   description = "삭제 시 최종 스냅샷 생략 여부"
