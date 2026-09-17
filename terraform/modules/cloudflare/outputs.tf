@@ -18,3 +18,8 @@ output "fqdn" {
   description = "이 Tunnel에 실제로 연결된 도메인 (서브도메인 포함)"
   value       = var.subdomain == "" ? data.cloudflare_zone.this.name : "${var.subdomain}.${data.cloudflare_zone.this.name}"
 }
+
+output "extra_fqdns" {
+  description = "extra_subdomains로 만든 호스트별 FQDN (서브도메인 → FQDN). K-6 ingress rule·K-2(f) Jenkins hostName에 전달"
+  value       = { for k, r in cloudflare_record.extra : k => "${k}.${data.cloudflare_zone.this.name}" }
+}

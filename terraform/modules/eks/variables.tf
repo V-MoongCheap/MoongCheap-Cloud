@@ -9,6 +9,14 @@ variable "env" {
   description = "환경 구분 (develop/prod)"
 }
 
+# 현재 운영 중인 클러스터가 1.36이라(2026-09-17 describe-cluster 확인) 같은 값으로 고정.
+# 올릴 때는 Karpenter chart·Add-on 호환표를 먼저 확인하고 이 값만 바꿔 apply한다(다운그레이드 불가).
+variable "cluster_version" {
+  type        = string
+  description = "EKS Kubernetes minor 버전 (예: \"1.36\"). 패치 버전은 AWS가 관리"
+  default     = "1.36"
+}
+
 variable "cluster_role_arn" {
   type        = string
   description = "EKS 클러스터(컨트롤 플레인)용 IAM Role ARN (modules/iam 출력값)"
@@ -69,6 +77,47 @@ variable "fe_min_size" {
   type        = number
   description = "FE Worker Node Group min size"
   default     = 1
+}
+
+variable "eso_namespace" {
+  type        = string
+  description = "External Secrets Operator가 설치될 Kubernetes Namespace (naming_convention_V2.md 5.1: infra)"
+  default     = "infra"
+}
+
+variable "eso_service_account_name" {
+  type        = string
+  description = "External Secrets Operator ServiceAccount 이름 — Helm Chart values의 serviceAccount.name과 반드시 일치해야 함"
+  default     = "external-secrets"
+}
+
+# ── Workload IRSA (C-5) ──────────────────────────────────────────────────
+# Jenkins Agent(kaniko)가 ECR에 push할 때 쓰는 SA. gitops/platform/jenkins/config.yaml의
+# namespace와 values.yaml의 serviceAccount.name과 반드시 일치해야 한다.
+variable "jenkins_namespace" {
+  type        = string
+  description = "Jenkins가 설치된 Kubernetes Namespace"
+  default     = "infra"
+}
+
+variable "jenkins_service_account_name" {
+  type        = string
+  description = "Jenkins Controller/Agent ServiceAccount 이름 (gitops values의 serviceAccount.name)"
+  default     = "jenkins-sa"
+}
+
+# BE Pod가 S3 Object 버킷에 접근할 때 쓰는 SA (naming_convention_V2.md 5.4: be-sa).
+# 서비스 Namespace는 moongcheap-{env}라 env로부터 계산한다.
+variable "be_service_account_name" {
+  type        = string
+  description = "Backend ServiceAccount 이름 (공통 Chart serviceAccount.name)"
+  default     = "be-sa"
+}
+
+variable "be_s3_bucket_arn" {
+  type        = string
+  description = "BE가 읽고 쓸 S3 Object 버킷 ARN (modules/s3 출력값). 빈 문자열이면 BE Role을 만들지 않는다"
+  default     = ""
 }
 
 variable "fe_max_size" {

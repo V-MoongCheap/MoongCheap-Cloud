@@ -62,6 +62,9 @@ module "eks" {
     "karpenter.sh/discovery" = "moongcheap-develop-eks"
   }
 
+  # C-5: BE Pod(be-sa)가 S3 Object 버킷을 읽고 쓸 IRSA Role. 버킷 ARN을 넘기면 만들어진다.
+  be_s3_bucket_arn = module.s3.bucket_arn
+
   # cluster_role_arn은 Role 생성 직후 알 수 있지만, 실제로는 정책(AmazonEKSClusterPolicy)이
   # 붙어있어야 클러스터 생성이 성공한다. output 값만으로는 이 순서가 보장되지 않아
   # module.iam 전체(정책 attachment 포함)가 끝난 뒤에 실행되도록 명시적으로 의존성을 건다.
@@ -122,6 +125,13 @@ module "cloudflare" {
   account_id = var.cloudflare_account_id
   zone_id    = var.cloudflare_zone_id
   subdomain  = var.cloudflare_subdomain
+
+  # C-12 / J-3: 서비스별 호스트. DEC-3(BE를 api. 호스트로 갈지 /api 경로로 갈지)과
+  # 프로젝트 도메인(moongcheap.shop) 전환이 끝나면 주석 해제 — 그 전엔 레코드 1개만 유지.
+  # 프로젝트 도메인 기준: subdomain = "" (apex = FE) + 아래 4개 → 총 5개, 전부 1단계라 Universal SSL 적용.
+  # 지금(wodurl.shop, subdomain = "moongcheap") 상태에서 미리 켜려면 "api.moongcheap" 식으로
+  # 써야 하고 2단계라 SSL이 안 덮인다 — 테스트 외엔 권장하지 않음.
+  # extra_subdomains = ["api", "jenkins", "grafana", "argocd"]
 }
 
 # 원래 terraform/bootstrap에 있었으나, 그 디렉토리는 local state를 Git에 커밋하는
