@@ -17,9 +17,9 @@ Repository/Directory 구조, 환경변수 및 Secret 관리 방식**을 정의�
 -   **AWS**: Primary Service Cloud
 -   **KT Cloud**: Terraform 관리 환경 + Secondary Backup Storage
 -   **EKS**: 단일 Cluster
--   **Worker Node Group**
-    -   FE Worker
-    -   BE·AI Worker
+-   **Worker Node**
+    -   FE Worker (Managed Node Group)
+    -   BE·AI Worker (Karpenter)
 -   **Data**
     -   Amazon RDS for PostgreSQL + pgvector
     -   Amazon S3
@@ -52,6 +52,10 @@ AWS Infrastructure Resource는 다음 형식을 기본으로 한다.
 -   `env` = `develop` \| `prod`
 -   `service` = `fe` \| `be` \| `ai` \| `infra`
 -   `resource` = Resource 종류 또는 역할
+
+> 위 `service` 약어는 **AWS Resource(IAM Role, SG 등)** 에만 쓴다.
+> Kubernetes 쪽(Helm Release, Namespace, Object, ECR Repository)은
+> `frontend` / `backend` / `ai` 전체 이름을 쓴다(5절, 7절).
 
 특정 Application Service에 속하지 않는 공통 Infrastructure Resource는
 `service`를 생략할 수 있다.
@@ -139,13 +143,21 @@ Group 기반 허용**을 우선한다.
 
 ### 3.3 EKS
 
-  Resource                   Naming
-  -------------------------- -----------------------------
-  EKS Cluster                `moongcheap-{env}-eks`
-  FE Managed Node Group      `moongcheap-{env}-fe-ng`
-  BE·AI Managed Node Group   `moongcheap-{env}-be-ai-ng`
-  FE Node Label              `workload=frontend`
-  BE·AI Node Label           `workload=backend-ai`
+> **[개정 2026-09-17]** BE·AI는 Managed Node Group에서 Karpenter로 변경. `moongcheap-{env}-be-ai-ng`는 폐기.
+
+  Resource                          Naming
+  --------------------------------- ---------------------------------------------
+  EKS Cluster                       `moongcheap-{env}-eks`
+  FE Managed Node Group             `moongcheap-{env}-fe-ng`
+  FE Node Label                     `workload=frontend`
+  BE·AI Node Label                  `workload=backend-ai` (Karpenter NodePool label)
+  Karpenter Controller IRSA Role    `moongcheap-{env}-karpenter-controller-role`
+  Karpenter Controller Policy       `moongcheap-{env}-karpenter-controller-policy`
+  Karpenter Node Role               `moongcheap-{env}-karpenter-node-role`
+  Karpenter Node Instance Profile   `moongcheap-{env}-karpenter-node-profile`
+  Karpenter discovery 태그           `karpenter.sh/discovery = moongcheap-{env}-eks`
+  Karpenter NodePool (K8s)          `be-ai`
+  Karpenter EC2NodeClass (K8s)      `be-ai`
 
 기존 `cpu-pool`, `gpu-pool`, `gpu-karpenter` Naming은 폐기한다.
 
@@ -155,12 +167,14 @@ Group 기반 허용**을 우선한다.
 FE Node Group
 → WEB Private Subnet
 
-BE·AI Node Group
-→ WAS Private Subnet
+BE·AI (Karpenter NodePool)
+→ WAS Private Subnet (`karpenter.sh/discovery` 태그로 탐색)
 ```
 
-Karpenter는 Scaling 정책 확정 전까지 별도 Resource Name을 정의하지
-않는다.
+Karpenter NodePool / EC2NodeClass는 Kubernetes Object이므로 5.3절 규칙(환경
+식별자 없음)을 따르고 `gitops/platform/karpenter/`에서 관리한다. Helm
+Release는 `karpenter`(Namespace `kube-system`, ServiceAccount `karpenter`)로
+고정한다 — Terraform IRSA 신뢰 정책이 이 이름을 참조한다.
 
 ### 3.4 IAM / IRSA
 
@@ -314,14 +328,15 @@ OpenSearch는 현재 Architecture의 **확정 구성 요소**로 관리한다.
 Naming:
 
 ``` text
-moongcheap-{env}-opensearch
+moongcheap-{env}-os            # Domain
+moongcheap-{env}-opensearch-sg # Security Group
+moongcheap-{env}-opensearch-secret  # Master 계정 Secret (10절 예외)
 ```
 
-Security Group:
-
-``` text
-moongcheap-{env}-opensearch-sg
-```
+> **[개정 2026-09-17]** Domain 이름은 AWS 제한(**28자 이하**) 때문에
+> `opensearch`를 `os`로 줄인다 — `moongcheap-develop-opensearch`는 29자라
+> 생성이 거부된다. Security Group·Secret은 이 제한이 없어 `opensearch`
+> 그대로 쓴다.
 
 현재 Spec:
 
@@ -355,30 +370,35 @@ terraform/
 │   ├── elasticache/
 │   ├── opensearch/
 │   ├── cloudflare/
-│   └── budget-alert/
+│   ├── budget-alert/
+│   └── karpenter/
 │
-└── envs/
-    ├── develop/
-    │   ├── backend.tf
-    │   ├── providers.tf
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   └── terraform.tfvars.example
-    └── prod/
-        ├── backend.tf
-        ├── providers.tf
-        ├── main.tf
-        ├── variables.tf
-        ├── outputs.tf
-        └── terraform.tfvars.example
+├── envs/
+│   ├── develop/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   └── prod/
+│       ├── backend.tf
+│       ├── providers.tf
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── terraform.tfvars.example
+│
+└── scripts/
+    └── pre-destroy-karpenter.sh
 ```
 
   Module          주요 관리 Resource
   --------------- -----------------------------------------
   `vpc`           VPC, Subnet, IGW, Route Table
   `nat`           NAT Instance, EIP, NAT Route
-  `eks`           EKS Cluster, Managed Node Group, Add-on
+  `eks`           EKS Cluster, FE Managed Node Group, Add-on, Access Entry
+  `karpenter`     Karpenter Controller IRSA, Node Role, Instance Profile, Access Entry, discovery 태그
   `ecr`           ECR Repository
   `iam`           IAM Role, IAM Policy, IRSA
   `rds`           RDS PostgreSQL, DB Subnet Group
@@ -392,75 +412,85 @@ terraform/
 Security Group은 해당 Resource를 소유하는 Module에서 관리하는 것을
 기본으로 한다.
 
+`terraform/scripts/`에는 Terraform 실행 전후에 필요한 보조 스크립트만 둔다
+(예: Karpenter 노드는 State 밖이라 `destroy` 전에 NodeClaim을 정리하는
+`pre-destroy-karpenter.sh`). 파일명은 `{시점}-{대상}.sh` 형태로 한다.
+
 ------------------------------------------------------------------------
 
 ## 5. Helm / Kubernetes Naming
 
 ### 5.1 Namespace
 
-``` text
-fe
-be
-ai
-infra
-```
-
-  Namespace   Workload
-  ----------- ----------------------------------------------------------
-  `fe`        Frontend
-  `be`        Backend
-  `ai`        AI API / AI Workload
-  `infra`     Jenkins / ArgoCD / Observability / Ingress / cloudflared
-
-### 5.2 Helm Release
-
-Application:
+> **[개정 2026-09-17]** gitops 구현(PR #16)에 맞춰 개정. 서비스는 환경별
+> Namespace 하나에 FE/BE/AI를 함께 두고, Platform은 역할별 Namespace를 쓴다.
 
 ``` text
-{service}-{env}
+moongcheap-{env}      # 서비스 (frontend / backend / ai)
+argocd                # ArgoCD
+infra                 # Jenkins, ingress-nginx, cloudflared, ESO
+monitoring            # Prometheus / Grafana / Loki / Alloy
+kube-system           # Karpenter, EKS Add-on
 ```
 
-예:
+  Namespace             Workload
+  --------------------- ---------------------------------------------------
+  `moongcheap-develop`  Frontend / Backend / AI (develop)
+  `moongcheap-prod`     Frontend / Backend / AI (prod — 8.1절, 현재 비활성)
+  `argocd`              ArgoCD
+  `infra`               Jenkins / ingress-nginx / cloudflared / External Secrets
+  `monitoring`          kube-prometheus-stack / Loki / Alloy
+  `kube-system`         Karpenter Controller, EKS Add-on
+
+Platform Namespace는 환경 접미사를 붙이지 않는다 — Platform은 클러스터당
+한 세트만 운영한다(6절).
+
+### 5.2 Helm Release / ArgoCD Application
+
+Application(서비스)은 Release Name에 환경을 넣지 않는다 — 환경은
+Namespace(`moongcheap-{env}`)가 구분한다.
 
 ``` text
-fe-develop
-be-develop
-ai-develop
+Helm Release      : {service}                 # frontend / backend / ai
+ArgoCD Application: moongcheap-{service}-{env} # moongcheap-backend-develop
 ```
 
-Infrastructure Component는 Component Name을 사용한다.
+Platform Component는 Component Name을 그대로 Release Name으로 쓰고,
+환경 접미사를 붙이지 않는다(클러스터당 한 세트).
 
 ``` text
-jenkins-develop
-argocd-develop
-prometheus-develop
-loki-develop
-grafana-develop
-alloy-develop
+jenkins
+kube-prometheus-stack
+loki
+alloy-logs
+alloy-metrics
+karpenter
 ```
+
+ArgoCD AppProject는 `moongcheap-services`(서비스) / `moongcheap-platform`
+(Platform) 두 개로 분리한다.
 
 ### 5.3 Kubernetes Object
 
+공통 Chart(`moongcheap-service`)가 `nameOverride: {service}`로 이름을 정하므로
+서비스의 Deployment / Service / HPA / PDB / Ingress는 **모두 `{service}`
+하나의 이름**을 쓰고 kind로 구분한다.
+
 ``` text
-{service}-{object}
+{service}
 ```
 
 예:
 
 ``` text
-fe-deployment
-fe-service
-be-deployment
-be-service
-ai-deployment
-ai-service
-be-hpa
-ai-hpa
+frontend    # Deployment, Service, HPA, PDB 전부 frontend
+backend
+ai
 ```
 
-환경은 Helm Release Name(`{service}-{env}`)과 Values File로 구분하며,
-Namespace는 환경별로 분리하지 않는다(8.1절 현재 배포 제약 참고). 따라서
-Kubernetes Object Name에도 환경 식별자를 중복해서 넣지 않는다.
+환경은 Namespace(`moongcheap-{env}`)가 구분하므로 Object Name에 환경
+식별자를 넣지 않는다. Platform Component의 Object 이름은 각 upstream Helm
+Chart 기본값을 따른다.
 
 ### 5.4 ServiceAccount
 
@@ -497,28 +527,33 @@ StorageClass는 실제 EBS Storage 정책 확정 후 정의한다.
 
 ### 5.6 Helm Directory
 
-Helm Chart는 Git 협업 Convention의 Repository 구조에 따라 `gitops/helm/`
-아래에서 관리한다.
+> **[개정 2026-09-17]** `gitops/helm/{service}/` 구조를 폐기하고 gitops
+> 구현(PR #16)의 **공통 Chart + Values Layering + Platform 분리** 구조로 개정.
+
+FE / BE / AI는 공통 Chart `gitops/charts/moongcheap-service` 하나를 쓰고,
+서비스·환경 차이는 `gitops/values/`의 4계층 Values로 관리한다.
 
 ``` text
-gitops/helm/
-├── frontend/
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   ├── values-develop.yaml
-│   ├── values-prod.yaml
-│   └── templates/
-├── backend/
-│   └── ...
-├── ai/
-│   └── ...
-└── infra/
-    ├── jenkins/
-    ├── argocd/
-    ├── ingress/
-    ├── cloudflared/
-    └── observability/
+gitops/
+├── charts/
+│   └── moongcheap-service/        # FE/BE/AI 공통 Chart
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       └── templates/
+├── values/
+│   ├── base.yaml                  # 전체 공통
+│   ├── env/{env}.yaml             # 환경 공통
+│   ├── services/{service}.yaml    # 서비스 공통 (nameOverride, image.repository)
+│   └── overrides/{env}/{service}.yaml  # 최종 (image.tag 등 Jenkins가 갱신)
+└── platform/
+    └── <group>/<component>/       # jenkins/, monitoring/loki/, observability/alloy-logs/ ...
+        ├── config.yaml            # name, namespace, helm.repoURL/chart/version
+        └── values.yaml
 ```
+
+Values 병합 순서는 `charts/…/values.yaml → base → env → services → overrides`
+이다. Platform Component는 `platform/<…>/config.yaml`을 추가하면 ArgoCD
+ApplicationSet이 자동 탐색한다(6절).
 
 GPU Taint/Toleration, GPU NodeSelector 및 기존 GPU/LLM Scale-to-Zero
 전용 설정은 제거한다.
@@ -541,7 +576,9 @@ Infrastructure Repository의 Directory 구조는 **Git 협업 Convention 2절**�
 MoongCheap-Cloud/
 ├── terraform/
 ├── gitops/
-│   ├── helm/
+│   ├── charts/
+│   ├── values/
+│   ├── platform/
 │   ├── argocd/
 │   └── jenkins/
 ├── docs/
@@ -549,24 +586,23 @@ MoongCheap-Cloud/
 └── README.md
 ```
 
-ArgoCD Directory:
+ArgoCD Directory — 환경별 Application 파일 대신 **ApplicationSet**으로
+생성한다.
 
 ``` text
 gitops/argocd/
-├── develop/
-│   ├── frontend.yaml
-│   ├── backend.yaml
-│   ├── ai.yaml
-│   └── observability.yaml
-└── prod/
-    ├── frontend.yaml
-    ├── backend.yaml
-    ├── ai.yaml
-    └── observability.yaml
+├── projects/
+│   ├── services-project.yaml          # AppProject moongcheap-services
+│   └── platform-project.yaml          # AppProject moongcheap-platform
+├── applicationset-services-develop.yaml   # frontend/backend/ai → moongcheap-develop
+├── applicationset-services-prod.yaml      # (비활성 템플릿, 8.1절)
+└── applicationset-platform.yaml           # platform/**/config.yaml 자동 탐색
 ```
 
-필요한 경우 Jenkins / Ingress 등 Infrastructure Application을 별도
-ArgoCD Application으로 분리한다.
+서비스 ApplicationSet은 list generator(frontend/backend/ai)로, Platform
+ApplicationSet은 Git file generator(`gitops/platform/**/config.yaml`)로
+Application을 만든다. Platform은 환경별로 중복 설치하지 않고 클러스터당 한
+세트만 둔다. 세부는 `gitops/README.md`를 기준으로 한다.
 
 Rollback은 **Git Revert → ArgoCD Auto Sync**를 기본 절차로 한다.
 
@@ -631,19 +667,15 @@ Image     → develop-{git-short-sha}
 
 -   FE / BE / AI / Infra 모든 서비스는 `develop` Branch 기준 소스
     코드를 AWS 인프라에 반영한다.
--   ArgoCD는 `gitops/argocd/develop`만 활성화(Auto Sync)하며,
-    `gitops/argocd/prod`는 Sync 대상에서 제외한다.
--   `gitops/argocd/prod`, `values-prod.yaml`, `terraform/envs/prod`는 삭제하지
-    않고 **향후 prod 환경 도입을 위한 비활성 템플릿**으로 유지한다.
--   위 제약으로 5.1절 Namespace(`fe`/`be`/`ai`/`infra`)는 환경 식별자를
-    포함하지 않는다. develop 환경만 배포되는 동안에는 고정 Namespace
-    기준 Kubernetes Object Name(`fe-deployment`, `be-service`,
-    `ai-hpa` 등)이 서로 충돌하지 않는다.
--   추후 prod 환경을 **동일 EKS Cluster에 추가로 배포**하게 되면, 그
-    시점에 Namespace(예: `fe-develop` / `fe-prod`) 또는 Kubernetes
-    Object Name에 환경 식별자를 추가하도록 5.1~5.3절 Naming 규칙을
-    함께 개정하고, ArgoCD Application의 `destination.namespace`도 이에
-    맞춰 갱신한다.
+-   ArgoCD에는 `applicationset-services-develop.yaml`만 적용(Auto Sync)하며,
+    `applicationset-services-prod.yaml`은 클러스터에 적용하지 않는다.
+-   `applicationset-services-prod.yaml`, `values/env/prod.yaml`,
+    `values/overrides/prod/`, `terraform/envs/prod`는 삭제하지 않고 **향후
+    prod 환경 도입을 위한 비활성 템플릿**으로 유지한다.
+-   서비스 Namespace는 `moongcheap-{env}`로 이미 환경 식별자를 포함하므로,
+    추후 prod를 **동일 EKS Cluster에 추가 배포**할 때 5.1~5.3절 Naming을
+    다시 개정할 필요 없이 prod ApplicationSet만 적용하면 된다(Platform은
+    한 세트 공유).
 
 ------------------------------------------------------------------------
 
@@ -706,13 +738,15 @@ Secret Store는 **AWS Secrets Manager**를 사용한다.
 Secret Naming:
 
 DB Secret은 3.6절 RDS 규약을 따라 다음 이름 하나로 통일하며, BE·AI Pod는
-모두 이 Secret을 조회한다.
+모두 이 Secret을 조회한다. OpenSearch Master 계정 Secret도 같은 방식으로
+데이터 계층 Resource 이름을 그대로 쓴다(3.9절).
 
 ``` text
 moongcheap-{env}-db-secret
+moongcheap-{env}-opensearch-secret
 ```
 
-DB 외 Secret은 다음 패턴을 따른다.
+그 외 Secret은 다음 패턴을 따른다.
 
 ``` text
 moongcheap-{env}-{service}-{purpose}-secret
@@ -722,7 +756,9 @@ moongcheap-{env}-{service}-{purpose}-secret
 
 ``` text
 moongcheap-develop-db-secret
+moongcheap-develop-opensearch-secret
 moongcheap-develop-infra-discord-secret
+moongcheap-develop-infra-cloudflare-secret
 ```
 
 Secret 대상 예:
@@ -732,7 +768,8 @@ Secret 대상 예:
 -   Discord Webhook
 -   외부 서비스 Credential
 
-Secrets Manager → Kubernetes Pod 전달 방식은 `[확정 필요]`이다.
+**[확정 2026-09-17]** Secrets Manager → Kubernetes Pod 전달 방식은 **External
+Secrets Operator(ESO)** 로 확정한다. 상세는 설계서 7.1 참고.
 
 ### Git Secret 제외 정책
 
@@ -824,14 +861,13 @@ Router 관련 Naming은 폐기한다.
 | --- | --- | --- |
 | 1 | VPC / Subnet CIDR 및 AZ | Terraform Network |
 | 2 | Kubernetes Version / EKS Endpoint 정책 | EKS Terraform |
-| 3 | FE / BE·AI Node Group Min / Desired / Max | EKS Scaling |
+| 3 | FE Node Group Min / Max, BE·AI Karpenter NodePool consolidation·AZ 정책 *(limits는 확정: cpu 8/mem 32Gi, 설계서 4.2)* | EKS Scaling |
 | 4 | FE / BE / AI Port, Probe, Resource, Replica | Helm |
-| 5 | HPA / Node Auto Scaling 정책 | Helm / EKS |
+| 5 | HPA 정책 (Node Scaling은 Karpenter로 확정 — 2026-09-17) | Helm |
 | 6 | RDS PostgreSQL Version / DB Name / Username | Terraform / Secret |
 | 7 | RDS Backup / Deletion Protection / Final Snapshot | Terraform |
 | 8 | S3 Versioning / Encryption / Lifecycle | Terraform |
-| 9 | Secrets Manager → Kubernetes Pod 전달 방식 | IAM / Helm |
-| 10 | Jenkins / ArgoCD Resource 및 PVC | Helm |
-| 11 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
-| 12 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
-| 13 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |
+| 9 | Jenkins / ArgoCD Resource 및 PVC | Helm |
+| 10 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
+| 11 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
+| 12 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |

@@ -25,7 +25,9 @@ Cloud Infra Repository는 다음 구조를 기준으로 관리한다.
 MoongCheap-Cloud/
 ├── terraform/
 ├── gitops/
-│   ├── helm/
+│   ├── charts/
+│   ├── values/
+│   ├── platform/
 │   ├── argocd/
 │   └── jenkins/
 ├── docs/
@@ -45,9 +47,10 @@ MoongCheap-Cloud/
 | `gitops/` | Helm Chart, ArgoCD Application, Jenkins Pipeline, Observability 등 Kubernetes / CI/CD 구성 전체 | 윤성 / 김준우 / 부학성 |
 | `docs/` | Cloud Infra 설계 및 운영 문서 | 공통 |
 
-Observability는 Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도 최상위
-Directory를 두지 않고 `gitops/helm/infra/observability/`에서 Chart, Values,
-Grafana Dashboard 및 Prometheus Rule을 함께 관리한다.
+Observability는 upstream Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도
+최상위 Directory를 두지 않고 `gitops/platform/monitoring/`,
+`gitops/platform/observability/`에서 `config.yaml + values.yaml`로 관리한다
+(12절).
 
 세부 Directory는 실제 구현 단계에서 필요한 구성요소에 따라 확장한다.
 
@@ -665,19 +668,23 @@ terraform/
 │   ├── elasticache/
 │   ├── opensearch/
 │   ├── cloudflare/
-│   └── budget-alert/
+│   ├── budget-alert/
+│   └── karpenter/
 │
-└── envs/
-    ├── develop/
-    │   ├── backend.tf
-    │   ├── providers.tf
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   └── terraform.tfvars.example
-    │
-    └── prod/
-        └── ...
+├── envs/
+│   ├── develop/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   │
+│   └── prod/
+│       └── ...
+│
+└── scripts/                      # Terraform 전후 보조 스크립트 (네이밍 규약서 4절)
+    └── pre-destroy-karpenter.sh
 ```
 
 Module 기본 구조:
@@ -694,49 +701,61 @@ terraform/modules/vpc/
 
 ## 12. GitOps Directory
 
-Kubernetes 및 CI/CD 관련 설정은 `gitops/`에서 관리한다.
+> **[개정 2026-09-17]** PR #16 구현 구조로 개정. 세부 규칙은 `gitops/README.md`와
+> 네이밍 규약서 5.6·6절이 기준이다.
 
-초기에는 단일 Directory로 시작하며 구현에 따라 다음과 같이 확장할 수
-있다.
+Kubernetes 및 CI/CD 관련 설정은 `gitops/`에서 관리한다.
 
 ``` text
 gitops/
-├── helm/
-│   ├── frontend/
-│   ├── backend/
-│   ├── ai/
-│   └── infra/
-│       ├── jenkins/
-│       ├── argocd/
-│       ├── ingress/
-│       ├── cloudflared/
-│       └── observability/
+├── charts/
+│   └── moongcheap-service/        # FE/BE/AI 공통 Helm Chart
+│
+├── values/
+│   ├── base.yaml
+│   ├── env/{develop,prod}.yaml
+│   ├── services/{frontend,backend,ai}.yaml
+│   └── overrides/{develop,prod}/{frontend,backend,ai}.yaml
+│
+├── platform/                      # 클러스터 공통 Platform (한 세트)
+│   ├── jenkins/
+│   ├── monitoring/{kube-prometheus-stack,loki}/
+│   ├── observability/{alloy-logs,alloy-metrics}/
+│   └── <추가 시> karpenter/ ingress-nginx/ cloudflared/ external-secrets/ storage/
+│       └── config.yaml + values.yaml
 │
 ├── argocd/
-│   ├── develop/
-│   └── prod/
+│   ├── projects/{services,platform}-project.yaml
+│   ├── applicationset-services-develop.yaml
+│   ├── applicationset-services-prod.yaml
+│   └── applicationset-platform.yaml
 │
-└── jenkins/
-    ├── Jenkinsfile
-    ├── pipelines/
-    └── scripts/
+├── jenkins/
+│   └── pipelines/Jenkinsfile.template
+│
+└── README.md
 ```
 
-`gitops/helm/`은 Kubernetes에 배포되는 Chart를, `gitops/argocd/`는 해당
-Chart를 동기화하는 ArgoCD Application 정의를, `gitops/jenkins/`는 Build
-Pipeline 정의를 관리한다.
+`charts/`는 서비스 공통 Chart, `values/`는 서비스·환경별 설정, `platform/`은
+Platform Component(Helm `config.yaml` + `values.yaml`), `argocd/`는
+AppProject와 ApplicationSet, `jenkins/`는 Build Pipeline 정의를 관리한다.
 
 ### Helm
 
-환경별 차이는 Manifest를 복제하기보다 Values를 통해 관리한다.
+서비스는 Chart를 복제하지 않고 공통 Chart + Values Layering으로 차이를
+관리한다.
 
 ``` text
-gitops/helm/backend/
-├── Chart.yaml
-├── values.yaml
-├── values-develop.yaml
-└── templates/
+charts/moongcheap-service/values.yaml
+→ values/base.yaml
+→ values/env/<env>.yaml
+→ values/services/<service>.yaml
+→ values/overrides/<env>/<service>.yaml   # Jenkins가 image.tag를 갱신
 ```
+
+Platform Component는 `platform/<…>/config.yaml`(chart 정보)과 `values.yaml`
+두 파일로 관리하며, `config.yaml`을 추가하면 ApplicationSet이 자동으로
+Application을 만든다.
 
 Secret 값은 Values에 직접 저장하지 않는다.
 
@@ -762,25 +781,24 @@ Rollback은 Git 변경 이력이 남도록 `git revert`를 기본으로 한다.
 
 ## 13. Observability Directory
 
-Observability Stack은 Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도
-최상위 Directory를 두지 않고 `gitops/helm/infra/observability/`에서
-관리한다.
+Observability Stack은 upstream Helm Chart(kube-prometheus-stack, loki,
+alloy)로 배포하고 ArgoCD Platform ApplicationSet이 동기화하므로 별도 최상위
+Directory를 두지 않고 `gitops/platform/` 아래에서 관리한다.
 
 ``` text
-gitops/helm/infra/observability/
-├── Chart.yaml
-├── values.yaml
-├── values-develop.yaml
-├── dashboards/          # Grafana Dashboard JSON
-├── rules/               # Prometheus Alert Rule
-└── templates/
+gitops/platform/
+├── monitoring/
+│   ├── kube-prometheus-stack/{config,values}.yaml
+│   └── loki/{config,values}.yaml
+└── observability/
+    ├── alloy-logs/{config,values}.yaml
+    └── alloy-metrics/{config,values}.yaml
 ```
 
-Prometheus Rule, Grafana Dashboard, Loki 및 Alloy 설정 등도 가능한
-범위에서 Git으로 관리한다.
-
-ArgoCD Application(`gitops/argocd/{env}/observability.yaml`)은 위 경로
-하나만 참조한다.
+Prometheus Rule, Grafana Dashboard 등 추가 설정은 각 Component의
+`values.yaml`(또는 같은 디렉터리의 보조 파일)로 Git에서 관리한다.
+ArgoCD Application은 `platform/**/config.yaml` 자동 탐색으로 생성되므로
+환경별 Application 파일을 따로 두지 않는다.
 
 ------------------------------------------------------------------------
 
