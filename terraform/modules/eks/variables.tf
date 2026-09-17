@@ -83,6 +83,35 @@ variable "eso_service_account_name" {
   default     = "external-secrets"
 }
 
+# ── Workload IRSA (C-5) ──────────────────────────────────────────────────
+# Jenkins Agent(kaniko)가 ECR에 push할 때 쓰는 SA. gitops/platform/jenkins/config.yaml의
+# namespace와 values.yaml의 serviceAccount.name과 반드시 일치해야 한다.
+variable "jenkins_namespace" {
+  type        = string
+  description = "Jenkins가 설치된 Kubernetes Namespace"
+  default     = "infra"
+}
+
+variable "jenkins_service_account_name" {
+  type        = string
+  description = "Jenkins Controller/Agent ServiceAccount 이름 (gitops values의 serviceAccount.name)"
+  default     = "jenkins-sa"
+}
+
+# BE Pod가 S3 Object 버킷에 접근할 때 쓰는 SA (naming_convention_V2.md 5.4: be-sa).
+# 서비스 Namespace는 moongcheap-{env}라 env로부터 계산한다.
+variable "be_service_account_name" {
+  type        = string
+  description = "Backend ServiceAccount 이름 (공통 Chart serviceAccount.name)"
+  default     = "be-sa"
+}
+
+variable "be_s3_bucket_arn" {
+  type        = string
+  description = "BE가 읽고 쓸 S3 Object 버킷 ARN (modules/s3 출력값). 빈 문자열이면 BE Role을 만들지 않는다"
+  default     = ""
+}
+
 variable "fe_max_size" {
   type        = number
   description = "FE Worker Node Group max size"

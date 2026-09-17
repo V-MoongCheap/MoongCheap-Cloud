@@ -56,3 +56,13 @@ output "eso_role_arn" {
   value       = aws_iam_role.eso.arn
   description = "External Secrets Operator IRSA Role ARN — Helm Chart의 serviceAccount.annotations에 eks.amazonaws.com/role-arn으로 전달 (K-5)"
 }
+
+output "jenkins_role_arn" {
+  value       = aws_iam_role.jenkins.arn
+  description = "Jenkins IRSA Role ARN — gitops/platform/jenkins/values.yaml serviceAccount.annotations의 eks.amazonaws.com/role-arn (K-2(b))"
+}
+
+output "be_role_arn" {
+  value       = local.create_be_role ? aws_iam_role.be[0].arn : null
+  description = "Backend IRSA Role ARN — 공통 Chart serviceAccount.annotations (K-9). be_s3_bucket_arn을 안 넘기면 null"
+}

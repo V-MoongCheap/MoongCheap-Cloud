@@ -62,6 +62,9 @@ module "eks" {
     "karpenter.sh/discovery" = "moongcheap-develop-eks"
   }
 
+  # C-5: BE Pod(be-sa)가 S3 Object 버킷을 읽고 쓸 IRSA Role. 버킷 ARN을 넘기면 만들어진다.
+  be_s3_bucket_arn = module.s3.bucket_arn
+
   # cluster_role_arn은 Role 생성 직후 알 수 있지만, 실제로는 정책(AmazonEKSClusterPolicy)이
   # 붙어있어야 클러스터 생성이 성공한다. output 값만으로는 이 순서가 보장되지 않아
   # module.iam 전체(정책 attachment 포함)가 끝난 뒤에 실행되도록 명시적으로 의존성을 건다.
