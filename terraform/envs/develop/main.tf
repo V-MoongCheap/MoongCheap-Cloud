@@ -122,6 +122,13 @@ module "cloudflare" {
   account_id = var.cloudflare_account_id
   zone_id    = var.cloudflare_zone_id
   subdomain  = var.cloudflare_subdomain
+
+  # C-12 / J-3: 서비스별 호스트. DEC-3(BE를 api. 호스트로 갈지 /api 경로로 갈지)과
+  # 프로젝트 도메인(moongcheap.shop) 전환이 끝나면 주석 해제 — 그 전엔 레코드 1개만 유지.
+  # 프로젝트 도메인 기준: subdomain = "" (apex = FE) + 아래 4개 → 총 5개, 전부 1단계라 Universal SSL 적용.
+  # 지금(wodurl.shop, subdomain = "moongcheap") 상태에서 미리 켜려면 "api.moongcheap" 식으로
+  # 써야 하고 2단계라 SSL이 안 덮인다 — 테스트 외엔 권장하지 않음.
+  # extra_subdomains = ["api", "jenkins", "grafana", "argocd"]
 }
 
 # 원래 terraform/bootstrap에 있었으나, 그 디렉토리는 local state를 Git에 커밋하는
