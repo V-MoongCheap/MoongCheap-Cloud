@@ -51,3 +51,8 @@ output "ebs_csi_driver_role_arn" {
   value       = aws_iam_role.ebs_csi_driver.arn
   description = "EBS CSI Driver IRSA Role ARN — EKS Addon 설치 시 서비스 어카운트에 annotation으로 연결해야 함"
 }
+
+output "eso_role_arn" {
+  value       = aws_iam_role.eso.arn
+  description = "External Secrets Operator IRSA Role ARN — Helm Chart의 serviceAccount.annotations에 eks.amazonaws.com/role-arn으로 전달 (K-5)"
+}

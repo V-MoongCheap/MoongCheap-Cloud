@@ -66,3 +66,8 @@ output "cloudflare_tunnel_token" {
   description = "cloudflared Deployment가 쓰는 Tunnel 토큰 (sensitive)"
   sensitive   = true
 }
+
+output "eso_role_arn" {
+  value       = module.eks.eso_role_arn
+  description = "External Secrets Operator IRSA Role ARN — gitops/platform/external-secrets/values.yaml의 serviceAccount.annotations에 eks.amazonaws.com/role-arn으로 전달 (K-5)"
+}

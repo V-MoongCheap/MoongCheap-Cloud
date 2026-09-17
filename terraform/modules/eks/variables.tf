@@ -71,6 +71,18 @@ variable "fe_min_size" {
   default     = 1
 }
 
+variable "eso_namespace" {
+  type        = string
+  description = "External Secrets Operator가 설치될 Kubernetes Namespace (naming_convention_V2.md 5.1: infra)"
+  default     = "infra"
+}
+
+variable "eso_service_account_name" {
+  type        = string
+  description = "External Secrets Operator ServiceAccount 이름 — Helm Chart values의 serviceAccount.name과 반드시 일치해야 함"
+  default     = "external-secrets"
+}
+
 variable "fe_max_size" {
   type        = number
   description = "FE Worker Node Group max size"
