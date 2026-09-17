@@ -54,7 +54,6 @@ grafana:
       url: http://loki-gateway.monitoring.svc.cluster.local
       isDefault: false
   service:
-<<<<<<< HEAD
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
   env:
     GF_PLUGINS_PREINSTALL_DISABLED: "true"
@@ -84,6 +83,3 @@ grafana:
         gnetId: 24574
         revision: 2
         datasource: Loki
-=======
-    type: ClusterIP 
->>>>>>> 3a0f021 (feat: edit env & clusterIP)
