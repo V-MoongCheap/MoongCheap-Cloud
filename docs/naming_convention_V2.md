@@ -17,9 +17,9 @@ Repository/Directory 구조, 환경변수 및 Secret 관리 방식**을 정의�
 -   **AWS**: Primary Service Cloud
 -   **KT Cloud**: Terraform 관리 환경 + Secondary Backup Storage
 -   **EKS**: 단일 Cluster
--   **Worker Node Group**
-    -   FE Worker
-    -   BE·AI Worker
+-   **Worker Node**
+    -   FE Worker (Managed Node Group)
+    -   BE·AI Worker (Karpenter)
 -   **Data**
     -   Amazon RDS for PostgreSQL + pgvector
     -   Amazon S3
@@ -139,13 +139,21 @@ Group 기반 허용**을 우선한다.
 
 ### 3.3 EKS
 
-  Resource                   Naming
-  -------------------------- -----------------------------
-  EKS Cluster                `moongcheap-{env}-eks`
-  FE Managed Node Group      `moongcheap-{env}-fe-ng`
-  BE·AI Managed Node Group   `moongcheap-{env}-be-ai-ng`
-  FE Node Label              `workload=frontend`
-  BE·AI Node Label           `workload=backend-ai`
+> **[개정 2026-09-17]** BE·AI는 Managed Node Group에서 Karpenter로 변경. `moongcheap-{env}-be-ai-ng`는 폐기.
+
+  Resource                          Naming
+  --------------------------------- ---------------------------------------------
+  EKS Cluster                       `moongcheap-{env}-eks`
+  FE Managed Node Group             `moongcheap-{env}-fe-ng`
+  FE Node Label                     `workload=frontend`
+  BE·AI Node Label                  `workload=backend-ai` (Karpenter NodePool label)
+  Karpenter Controller IRSA Role    `moongcheap-{env}-karpenter-controller-role`
+  Karpenter Controller Policy       `moongcheap-{env}-karpenter-controller-policy`
+  Karpenter Node Role               `moongcheap-{env}-karpenter-node-role`
+  Karpenter Node Instance Profile   `moongcheap-{env}-karpenter-node-profile`
+  Karpenter discovery 태그           `karpenter.sh/discovery = moongcheap-{env}-eks`
+  Karpenter NodePool (K8s)          `be-ai`
+  Karpenter EC2NodeClass (K8s)      `be-ai`
 
 기존 `cpu-pool`, `gpu-pool`, `gpu-karpenter` Naming은 폐기한다.
 
@@ -155,12 +163,14 @@ Group 기반 허용**을 우선한다.
 FE Node Group
 → WEB Private Subnet
 
-BE·AI Node Group
-→ WAS Private Subnet
+BE·AI (Karpenter NodePool)
+→ WAS Private Subnet (`karpenter.sh/discovery` 태그로 탐색)
 ```
 
-Karpenter는 Scaling 정책 확정 전까지 별도 Resource Name을 정의하지
-않는다.
+Karpenter NodePool / EC2NodeClass는 Kubernetes Object이므로 5.3절 규칙(환경
+식별자 없음)을 따르고 `gitops/platform/karpenter/`에서 관리한다. Helm
+Release는 `karpenter`(Namespace `kube-system`, ServiceAccount `karpenter`)로
+고정한다 — Terraform IRSA 신뢰 정책이 이 이름을 참조한다.
 
 ### 3.4 IAM / IRSA
 
@@ -355,30 +365,35 @@ terraform/
 │   ├── elasticache/
 │   ├── opensearch/
 │   ├── cloudflare/
-│   └── budget-alert/
+│   ├── budget-alert/
+│   └── karpenter/
 │
-└── envs/
-    ├── develop/
-    │   ├── backend.tf
-    │   ├── providers.tf
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   └── terraform.tfvars.example
-    └── prod/
-        ├── backend.tf
-        ├── providers.tf
-        ├── main.tf
-        ├── variables.tf
-        ├── outputs.tf
-        └── terraform.tfvars.example
+├── envs/
+│   ├── develop/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   └── prod/
+│       ├── backend.tf
+│       ├── providers.tf
+│       ├── main.tf
+│       ├── variables.tf
+│       ├── outputs.tf
+│       └── terraform.tfvars.example
+│
+└── scripts/
+    └── pre-destroy-karpenter.sh
 ```
 
   Module          주요 관리 Resource
   --------------- -----------------------------------------
   `vpc`           VPC, Subnet, IGW, Route Table
   `nat`           NAT Instance, EIP, NAT Route
-  `eks`           EKS Cluster, Managed Node Group, Add-on
+  `eks`           EKS Cluster, FE Managed Node Group, Add-on, Access Entry
+  `karpenter`     Karpenter Controller IRSA, Node Role, Instance Profile, Access Entry, discovery 태그
   `ecr`           ECR Repository
   `iam`           IAM Role, IAM Policy, IRSA
   `rds`           RDS PostgreSQL, DB Subnet Group
@@ -391,6 +406,10 @@ terraform/
 
 Security Group은 해당 Resource를 소유하는 Module에서 관리하는 것을
 기본으로 한다.
+
+`terraform/scripts/`에는 Terraform 실행 전후에 필요한 보조 스크립트만 둔다
+(예: Karpenter 노드는 State 밖이라 `destroy` 전에 NodeClaim을 정리하는
+`pre-destroy-karpenter.sh`). 파일명은 `{시점}-{대상}.sh` 형태로 한다.
 
 ------------------------------------------------------------------------
 
@@ -824,9 +843,9 @@ Router 관련 Naming은 폐기한다.
 | --- | --- | --- |
 | 1 | VPC / Subnet CIDR 및 AZ | Terraform Network |
 | 2 | Kubernetes Version / EKS Endpoint 정책 | EKS Terraform |
-| 3 | FE / BE·AI Node Group Min / Desired / Max | EKS Scaling |
+| 3 | FE Node Group Min / Max, BE·AI Karpenter NodePool `limits`·consolidation | EKS Scaling |
 | 4 | FE / BE / AI Port, Probe, Resource, Replica | Helm |
-| 5 | HPA / Node Auto Scaling 정책 | Helm / EKS |
+| 5 | HPA 정책 (Node Scaling은 Karpenter로 확정 — 2026-09-17) | Helm |
 | 6 | RDS PostgreSQL Version / DB Name / Username | Terraform / Secret |
 | 7 | RDS Backup / Deletion Protection / Final Snapshot | Terraform |
 | 8 | S3 Versioning / Encryption / Lifecycle | Terraform |

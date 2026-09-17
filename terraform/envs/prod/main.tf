@@ -82,9 +82,9 @@ module "rds" {
   be_ai_security_group_id = module.eks.be_ai_security_group_id
   db_subnet_ids           = module.vpc.db_private_subnet_ids
 
-  # rds/variables.tf 주석 지시사항: 개발 환경 기본값(skip_final_snapshot=true,
-  # deletion_protection=false)은 반복 테스트 편의 우선이라 prod에는 부적합하다.
-  # prod는 실수/오작동으로 인한 데이터 유실을 막기 위해 반드시 아래처럼 오버라이드한다.
+  # 설계서_V2 6.6·Runbook 10장: Stateful Resource는 일반 destroy에서 보호한다.
+  # deletion_protection은 모듈 기본값이 이미 true(develop도 동일)라 명시는 재확인용이고,
+  # skip_final_snapshot만 모듈 기본값(true, 반복 테스트 편의)과 달리 prod에서 false로 오버라이드한다.
   skip_final_snapshot = false
   deletion_protection = true
 }
