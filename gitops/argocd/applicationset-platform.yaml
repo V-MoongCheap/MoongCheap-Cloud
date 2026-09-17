@@ -13,8 +13,7 @@ spec:
   generators:
     - git:
         repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
-        # 나중에 main으로 변경
-        revision: feat/gitops
+        revision: develop
         files:
           - path: gitops/platform/**/config.yaml
 
@@ -36,7 +35,7 @@ spec:
               - "$values/{{ .path.path }}/values.yaml"
 
         - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
-          targetRevision: feat/gitops
+          targetRevision: develop
           ref: values
 
       destination:
