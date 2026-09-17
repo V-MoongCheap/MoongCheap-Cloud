@@ -665,19 +665,23 @@ terraform/
 │   ├── elasticache/
 │   ├── opensearch/
 │   ├── cloudflare/
-│   └── budget-alert/
+│   ├── budget-alert/
+│   └── karpenter/
 │
-└── envs/
-    ├── develop/
-    │   ├── backend.tf
-    │   ├── providers.tf
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   └── terraform.tfvars.example
-    │
-    └── prod/
-        └── ...
+├── envs/
+│   ├── develop/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   │
+│   └── prod/
+│       └── ...
+│
+└── scripts/                      # Terraform 전후 보조 스크립트 (네이밍 규약서 4절)
+    └── pre-destroy-karpenter.sh
 ```
 
 Module 기본 구조:

@@ -30,10 +30,10 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 
 ### 워크로드 배치
 
-| Node Group 배치 워크로드                 |                                                                                      |
+| Worker 배치 워크로드                    |                                                                                      |
 | ---------------------------------- | ------------------------------------------------------------------------------------ |
-| **FE Worker**                      | Frontend (Next.js)                                                                   |
-| **BE·AI Worker**                   | Backend (Spring), API Server (FastAPI + Uvicorn), Embedding 등 **CPU 기반 AI Workload** |
+| **FE Worker** (Managed Node Group) | Frontend (Next.js)                                                                   |
+| **BE·AI Worker** (Karpenter)       | Backend (Spring), API Server (FastAPI + Uvicorn), Embedding 등 **CPU 기반 AI Workload** |
 | **BE·AI Worker (System Workload)** | Prometheus, Loki, Grafana, Alloy, ArgoCD, Jenkins                                    |
 | Pool 외 (클러스터 레벨)                   | NGINX Ingress Controller                                                             |
 
@@ -74,15 +74,15 @@ KT Cloud는 서비스 요청 처리 경로에 포함하지 않으며, **AWS 인�
 
 #### EKS Subnet 배치
 
-EKS는 **단일 Cluster**로 구성하며, Worker Node Group별로 배치 Subnet을 분리한다.
+EKS는 **단일 Cluster**로 구성하며, Worker별로 배치 Subnet을 분리한다.
 
-| Node Group 배치 Subnet 인스턴스 구성 주요 워크로드  |                    |               |                                                                      |
-| ------------------------------------- | ------------------ | ------------- | -------------------------------------------------------------------- |
-| FE Worker                             | WEB Private Subnet | `t3.small ×2` | Frontend                                                             |
-| BE·AI Worker                          | WAS Private Subnet | `t3.large ×N` | Backend, API Server, AI CPU Workload, Jenkins, ArgoCD, Observability |
+| Worker 배치 Subnet 인스턴스 구성 주요 워크로드     |                    |                          |                                                                      |
+| ------------------------------------- | ------------------ | ------------------------ | -------------------------------------------------------------------- |
+| FE Worker (Managed Node Group)        | WEB Private Subnet | `t3.small ×2`            | Frontend                                                             |
+| BE·AI Worker (Karpenter)              | WAS Private Subnet | `t3.large ×N` (0~상한)     | Backend, API Server, AI CPU Workload, Jenkins, ArgoCD, Observability |
 
 - FE Worker와 BE·AI Worker는 동일한 EKS Cluster에 포함한다.
-- Node Group 생성 시 각 Node Group에 대응하는 Private Subnet ID를 명시한다.
+- FE Node Group 생성 시 대응하는 Private Subnet ID를 명시한다. BE·AI(Karpenter)는 WAS Private Subnet에 `karpenter.sh/discovery` 태그를 붙여 EC2NodeClass가 Subnet을 찾게 한다.
 - Pod는 기본적으로 해당 Worker Node가 위치한 Subnet의 네트워크를 사용한다.
 - System Workload 전용 Node Group은 초기에는 구성하지 않는다.
 - BE·AI Worker의 실제 리소스 사용량과 Jenkins Build 부하를 측정한 뒤 필요 시 전용 Node Group 분리를 검토한다.
@@ -304,7 +304,7 @@ KT Cloud Backup Storage
 
 서비스 워크로드는 AWS `ap-northeast-2` 리전의 **단일 EKS Cluster**에서 운영한다.
 
-Frontend와 Backend·AI는 동일한 Cluster를 사용하되, Node Group과 Subnet을 분리하여 워크로드를 배치한다.
+Frontend와 Backend·AI는 동일한 Cluster를 사용하되, Worker(FE는 Managed Node Group, BE·AI는 Karpenter)와 Subnet을 분리하여 워크로드를 배치한다.
 
 | 항목 값                  |                    |
 | --------------------- | ------------------ |
@@ -333,16 +333,18 @@ Frontend와 Backend·AI는 동일한 Cluster를 사용하되, Node Group과 Subn
 
 ---
 
-### 4.2 Node Group
+### 4.2 Worker Node 구성
 
-EKS Worker Node는 **FE Worker Node Group과 BE·AI Worker Node Group**으로 분리한다.
+> **[개정 2026-09-17]** BE·AI Worker를 Managed Node Group에서 **Karpenter**로 변경(PR #13 반영, 팀 확정). FE Worker는 Managed Node Group 유지.
 
-초기에는 Observability 및 CI/CD 전용 Node Group을 별도로 구성하지 않고 BE·AI Worker에 함께 배치한다.
+EKS Worker Node는 **FE Worker(Managed Node Group)와 BE·AI Worker(Karpenter NodePool)**로 분리한다.
 
-| Node Group 배치 Subnet Instance Type 배치 워크로드  |                    |            |                                                                                                 |
+초기에는 Observability 및 CI/CD 전용 Worker를 별도로 구성하지 않고 BE·AI Worker에 함께 배치한다.
+
+| Worker 배치 Subnet Instance Type 배치 워크로드      |                    |            |                                                                                                 |
 | ------------------------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------- |
-| **FE Worker**                               | WEB Private Subnet | `t3.small` | Frontend (Next.js)                                                                              |
-| **BE·AI Worker**                            | WAS Private Subnet | `t3.large` | Backend(Spring), API Server, AI CPU Workload, Jenkins, ArgoCD, Prometheus, Loki, Alloy, Grafana |
+| **FE Worker** (Managed Node Group)          | WEB Private Subnet | `t3.small` | Frontend (Next.js)                                                                              |
+| **BE·AI Worker** (Karpenter)                | WAS Private Subnet | `t3.large` | Backend(Spring), API Server, AI CPU Workload, Jenkins, ArgoCD, Prometheus, Loki, Alloy, Grafana |
 
 #### FE Worker Node Group
 
@@ -358,21 +360,28 @@ EKS Worker Node는 **FE Worker Node Group과 BE·AI Worker Node Group**으로 �
 | Public IP     | 사용하지 않음            |
 | Root Volume   | 20 GiB EBS         |
 
-#### BE·AI Worker Node Group
+#### BE·AI Worker (Karpenter)
 
-| 항목 값          |                        |
-| ------------- | ---------------------- |
-| Instance Type | `t3.large`             |
-| vCPU / Memory | `2 vCPU / 8 GiB`       |
-| Capacity Type | On-Demand              |
-| Desired Size  | `[확정 필요]`              |
-| Min Size      | `[확정 필요]`              |
-| Max Size      | `4` *(현재 비용 산정 기준 상한)* |
-| Subnet        | WAS Private Subnet     |
-| Public IP     | 사용하지 않음                |
-| Root Volume   | **20 GiB EBS**         |
+Managed Node Group 대신 Karpenter가 Pod의 `requests`에 맞춰 EC2를 직접 생성·회수한다. Desired/Min/Max 개념이 없고, **Pod가 없으면 Node도 없다.**
 
-> `t3.large ×4`는 상시 실행되는 고정 Node 수가 아니라 **현재 비용 산정에서 사용한 최대 구성 기준**이다. 실제 Desired/Min 값은 각 파트의 Pod Request와 부하 테스트 결과를 기준으로 확정한다.
+| 항목 값             |                                                                                         |
+| ---------------- | --------------------------------------------------------------------------------------- |
+| Provisioner      | Karpenter (Helm, `kube-system`, ServiceAccount `karpenter`)                             |
+| Instance Type    | `t3.large` (NodePool `requirements`로 고정)                                                |
+| vCPU / Memory    | `2 vCPU / 8 GiB`                                                                        |
+| Capacity Type    | On-Demand                                                                               |
+| 최소 Node 수        | `0` (Pod 없으면 Karpenter가 회수)                                                             |
+| 상한               | NodePool `spec.limits` — `t3.large ×4` 상당(`cpu: 8`, `memory: 32Gi`) *(비용 산정 기준)*           |
+| Node Label       | `workload: backend-ai` (NodePool `spec.template.metadata.labels`)                        |
+| Subnet           | WAS Private Subnet (`karpenter.sh/discovery` 태그로 탐색)                                    |
+| Security Group   | BE·AI SG + EKS Cluster SG (둘 다 `karpenter.sh/discovery` 태그; Cluster SG 없으면 노드 등록 실패)    |
+| Instance Profile | `moongcheap-{env}-karpenter-node-profile`                                               |
+| Public IP        | 사용하지 않음                                                                                 |
+| Root Volume      | **20 GiB EBS**                                                                          |
+
+> `t3.large ×4`는 상시 실행되는 고정 Node 수가 아니라 **현재 비용 산정에서 사용한 최대 구성 기준**이며 NodePool `limits`로 반영한다. consolidation·AZ 정책은 각 파트의 Pod Request와 부하 테스트 결과를 기준으로 확정한다(4.5).
+
+> **책임 경계**: Karpenter가 필요로 하는 AWS 측 자원(Controller IRSA Role, Node Role, Instance Profile, EKS Access Entry, discovery 태그)은 Terraform `modules/karpenter`가, Karpenter Helm 설치와 NodePool/EC2NodeClass(Kubernetes CR)는 `gitops/platform/karpenter/`가 담당한다(8.6). Karpenter가 띄운 EC2는 Terraform State에 없으므로 **`terraform destroy` 전에 `terraform/scripts/pre-destroy-karpenter.sh`로 NodeClaim을 먼저 정리**해야 한다.
 
 #### 워크로드 배치 제어
 
@@ -389,7 +398,7 @@ BE·AI Worker:
 
 ```
 
-워크로드는 `nodeSelector` 또는 `nodeAffinity`를 이용해 대상 Node Group에 배치한다.
+워크로드는 `nodeSelector` 또는 `nodeAffinity`를 이용해 대상 Worker에 배치한다. FE Label은 Managed Node Group `labels`로, BE·AI Label은 Karpenter NodePool `spec.template.metadata.labels`로 부여한다.
 
 - Frontend → FE Worker
 - Backend / API / AI → BE·AI Worker
@@ -417,7 +426,7 @@ BE·AI Worker:
 | 시스템            | Metrics Server           | EKS Cluster                |
 | 시스템            | EBS CSI Driver           | EKS Add-on                 |
 | 확장             | HPA                      | 애플리케이션 Pod `[적용 대상 확정 필요]` |
-| 확장             | Karpenter                | `[도입 여부 확정 필요]`            |
+| 확장             | Karpenter                | `kube-system` (Helm) — **도입 확정(2026-09-17)**, BE·AI Worker 프로비저닝 |
 | 확장             | KEDA                     | `[도입 여부 확정 필요]`            |
 
 #### Pod Auto Scaling
@@ -434,7 +443,7 @@ HPA 적용 시 다음 항목을 워크로드별로 명시한다.
 | CPU Target Utilization | `[확정 필요]` |
 | Memory 기반 Scaling      | `[확정 필요]` |
 
-Karpenter 또는 Node Group Auto Scaling을 통한 **Node Scaling 정책은 Pod Resource 및 HPA 정책 확정 후 결정한다.**
+Node Scaling은 **Karpenter로 확정**한다(BE·AI Worker). NodePool의 `limits`·consolidation·AZ 정책 세부값은 Pod Resource 및 HPA 정책 확정 후 조정한다. FE Worker는 Managed Node Group Min/Max로 관리한다.
 
 ---
 
@@ -486,11 +495,10 @@ Terraform 및 Helm 코드 작성 전에 다음 값을 최종 확정해야 한다
 | EKS              | Cluster Endpoint Public / Private Access 정책     |
 | Network          | EKS가 사용할 AZ                                     |
 | FE Node Group    | Min / Max Size                                  |
-| BE·AI Node Group | Min / Desired Size                              |
+| BE·AI (Karpenter) | NodePool `limits` 확정값 / consolidation / AZ 고정 정책 |
 | Node             | Root EBS Volume 타입 *(크기: 20 GiB 확정)*             |
 | cloudflared      | Node Group / Replica                            |
 | Scaling          | HPA 적용 대상 및 Threshold                           |
-| Scaling          | Karpenter 또는 Node Auto Scaling 방식               |
 | FE               | Port / Probe / Resource / Replica               |
 | BE               | Port / Probe / Resource / Replica               |
 | AI               | Port / Probe / Resource / Replica               |
@@ -1031,7 +1039,7 @@ Terraform은 다음 AWS Resource의 생성 및 변경을 담당한다.
 | ---------------------- | ------------------------------------------------------------ |
 | Network                | VPC, Public/WEB/WAS/DB Subnet, Route Table, Internet Gateway |
 | Outbound               | NAT Instance, Elastic IP, Route                              |
-| EKS                    | EKS Cluster, FE Node Group, BE·AI Node Group, EKS Add-on     |
+| EKS                    | EKS Cluster, FE Node Group, EKS Add-on, Karpenter AWS 측 자원(IRSA/Node Role/Instance Profile/Access Entry/discovery 태그) |
 | Registry               | ECR Repository                                               |
 | IAM                    | IAM Role, IAM Policy, IRSA                                  |
 | Data                   | RDS PostgreSQL, DB Subnet Group, S3                          |
@@ -1145,7 +1153,7 @@ Terraform과 Helm이 동일 Resource를 동시에 관리하지 않도록 책임 
 Terraform
 │
 ├─ AWS Network
-├─ EKS Cluster / Node Group
+├─ EKS Cluster / FE Node Group / Karpenter IAM
 ├─ IAM / Security Group
 ├─ ECR
 ├─ RDS
@@ -1191,15 +1199,18 @@ terraform/
 │  ├─ elasticache/
 │  ├─ opensearch/
 │  ├─ cloudflare/
-│  └─ budget-alert/
+│  ├─ budget-alert/
+│  └─ karpenter/          # Karpenter AWS 측 자원 (IRSA, Node Role, Instance Profile, Access Entry)
 │
-└─ envs/
-   ├─ develop/
-   └─ prod/
+├─ envs/
+│  ├─ develop/
+│  └─ prod/
+│
+└─ scripts/               # Terraform 전후 보조 스크립트 (예: pre-destroy-karpenter.sh)
 
 ```
 
-ElastiCache 및 OpenSearch는 확정된 구성으로 각 Terraform Module에서 관리한다.
+ElastiCache 및 OpenSearch는 확정된 구성으로 각 Terraform Module에서 관리한다. Karpenter의 Kubernetes 측(Helm, NodePool, EC2NodeClass)은 `gitops/platform/karpenter/`에서 관리한다.
 
 KT Cloud Resource를 Terraform으로 관리할 경우 AWS Terraform Module과 관리 경계를 분리한다.
 
