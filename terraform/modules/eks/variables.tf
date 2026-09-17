@@ -9,6 +9,14 @@ variable "env" {
   description = "환경 구분 (develop/prod)"
 }
 
+# 현재 운영 중인 클러스터가 1.36이라(2026-09-17 describe-cluster 확인) 같은 값으로 고정.
+# 올릴 때는 Karpenter chart·Add-on 호환표를 먼저 확인하고 이 값만 바꿔 apply한다(다운그레이드 불가).
+variable "cluster_version" {
+  type        = string
+  description = "EKS Kubernetes minor 버전 (예: \"1.36\"). 패치 버전은 AWS가 관리"
+  default     = "1.36"
+}
+
 variable "cluster_role_arn" {
   type        = string
   description = "EKS 클러스터(컨트롤 플레인)용 IAM Role ARN (modules/iam 출력값)"
