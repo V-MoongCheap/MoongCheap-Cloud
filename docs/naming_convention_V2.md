@@ -768,7 +768,8 @@ Secret 대상 예:
 -   Discord Webhook
 -   외부 서비스 Credential
 
-Secrets Manager → Kubernetes Pod 전달 방식은 `[확정 필요]`이다.
+**[확정 2026-09-17]** Secrets Manager → Kubernetes Pod 전달 방식은 **External
+Secrets Operator(ESO)** 로 확정한다. 상세는 설계서 7.1 참고.
 
 ### Git Secret 제외 정책
 
@@ -866,8 +867,7 @@ Router 관련 Naming은 폐기한다.
 | 6 | RDS PostgreSQL Version / DB Name / Username | Terraform / Secret |
 | 7 | RDS Backup / Deletion Protection / Final Snapshot | Terraform |
 | 8 | S3 Versioning / Encryption / Lifecycle | Terraform |
-| 9 | Secrets Manager → Kubernetes Pod 전달 방식 | IAM / Helm |
-| 10 | Jenkins / ArgoCD Resource 및 PVC | Helm |
-| 11 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
-| 12 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
-| 13 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |
+| 9 | Jenkins / ArgoCD Resource 및 PVC | Helm |
+| 10 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
+| 11 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
+| 12 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |

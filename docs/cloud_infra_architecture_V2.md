@@ -653,7 +653,7 @@ pgvector Extension
 - RDS Security Group의 TCP `5432` Inbound는 DB 접근이 필요한 애플리케이션 Security Group에서만 허용한다.
 - DB Credential은 Helm `values.yaml`, Kubernetes Manifest 또는 Terraform 코드에 평문으로 저장하지 않는다.
 - DB Credential은 AWS Secrets Manager에서 관리한다.
-- 애플리케이션의 Secret 주입 방식은 `[확정 필요]`이다.
+- 애플리케이션의 Secret 주입 방식은 **External Secrets Operator(ESO)로 확정**한다(2026-09-17, 7.1 참고).
 
 ---
 
@@ -792,14 +792,14 @@ EKS Pod에서 AWS Resource에 접근할 때 컨테이너 내부에 장기 Access
 | EBS CSI Driver            | EBS / EC2 API   | EBS Volume 생성·연결·삭제              |
 | Jenkins Agent             | ECR             | Image Push / Pull                |
 | 애플리케이션 Pod                | S3              | Object Read / Write `[대상 확정 필요]` |
-| Secret 조회 컴포넌트            | Secrets Manager | Secret Read                      |
+| **External Secrets Operator** | Secrets Manager | `GetSecretValue` / `DescribeSecret` (Secret 조회 전용, 단일 IRSA Role) |
 | 기타 Workload               | AWS Resource    | 최소 권한 원칙에 따라 개별 정의               |
 
 - Pod → AWS IAM 연동 방식은 **IRSA**를 프로젝트 표준으로 사용한다.
 - IAM Role은 Workload별로 분리하고 최소 권한 원칙을 적용한다.
 - AWS Access Key / Secret Access Key를 Container Image, Helm `values.yaml`, Kubernetes Manifest 또는 Git Repository에 평문으로 저장하지 않는다.
 - Secret Store는 **AWS Secrets Manager**를 사용한다.
-- Kubernetes Pod에 Secret을 전달하는 구체적인 방식은 `[확정 필요]`이다.
+- **[확정 2026-09-17]** Secrets Manager → Kubernetes Pod 전달은 **External Secrets Operator(ESO)** 로 확정한다. ESO 전용 IRSA Role 하나(`secretsmanager:GetSecretValue`/`DescribeSecret`, `moongcheap-{env}-*` 리소스 한정)가 `ClusterSecretStore`를 통해 모든 Secret을 조회하고, 서비스별 `ExternalSecret`이 K8s Secret으로 동기화한다(DB, OpenSearch, Cloudflare Tunnel Token, Discord Webhook, GitHub Token, Grafana 비밀번호 전부 이 경로). 대안이었던 Secrets Store CSI Driver는 채택하지 않는다 — ESO는 K8s Secret 오브젝트로 남아 `envFrom.secretRef` 등 표준 방식으로 재사용 가능한 반면 CSI 방식은 볼륨 마운트에 한정된다.
 - Secret Naming 및 관리 규칙은 네이밍/Secret 관리 문서를 따른다.
 
 ---
@@ -995,7 +995,6 @@ Terraform 및 Helm 구성 자동화를 위해 다음 값을 추가로 확정한�
 | 구분 미확정 값   |                                        |
 | ---------- | -------------------------------------- |
 | IAM        | Workload별 IAM Policy                   |
-| Secret     | Secrets Manager → Pod Secret 전달 방식     |
 | Jenkins    | Controller Resource Request / Limit    |
 | Jenkins    | PVC Size / StorageClass                |
 | Jenkins    | Agent Resource / 최대 동시 Build 수         |
