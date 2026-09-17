@@ -96,6 +96,15 @@ NAT 역할만 수행하면 되므로 상시 고성능이 필요 없고, 저렴�
     **Elastic IP 연결**(Public IPv4 주소는 시간당 별도 과금), Private
     Subnet Route Table의 default route를 NAT Instance ENI로 지정, 장애
     시 Terraform으로 재생성 가능하도록 스크립트화
+-   **[2026-09-17 이력]** 최초 apply 당시 AWS 계정이 **Free Tier 상태**여서
+    `t3a.micro`가 `InvalidParameterCombination: not eligible for Free Tier`로
+    생성 거부됐고, NAT가 없어 FE Node가 ECR에 못 나가 EKS Node Group이
+    30분 가까이 대기했다. 기종을 낮추지 않고 **결제수단 등록으로 계정
+    제약을 해제**해 해결했다. 계정을 새로 만들거나 바꾸면 이 조건을 먼저
+    확인할 것(Bootstrap Runbook §0.0, `docs_troubleshooting/…-05-*.md`).
+-   재생성 절차: NAT Instance는 ENI·EIP와 분리돼 있어(`modules/nat`)
+    `terraform apply -replace=module.nat.aws_instance.nat`로 인스턴스만
+    교체하면 라우팅·EIP는 유지된다.
 
 ### 5.2 NAT Instance 비용
 
