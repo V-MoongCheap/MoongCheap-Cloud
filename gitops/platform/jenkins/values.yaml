@@ -31,16 +31,17 @@ controller:
         jenkins:
           clouds:
             - kubernetes:
-                name: "eks-develop"
+                name: "kubernetes"
                 serverUrl: "https://kubernetes.default"
-                namespace: "infra"
-                jenkinsUrl: "http://jenkins.infra.svc.cluster.local:8080"
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
                 containerCapStr: "10"
                 podRetention: "never"
                 templates:
                   - name: "node-builder"
                     label: "node-builder"
-                    namespace: "infra"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
                     containers:
                       - name: "builder"
                         image: "node:20"
@@ -61,7 +62,8 @@ controller:
                         resourceRequestMemory: "1Gi"
                   - name: "java-builder"
                     label: "java-builder"
-                    namespace: "infra"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
                     containers:
                       - name: "builder"
                         image: "eclipse-temurin:17-jdk"
@@ -77,7 +79,8 @@ controller:
                         resourceRequestMemory: "1Gi"
                   - name: "python-builder"
                     label: "python-builder"
-                    namespace: "infra"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
                     containers:
                       - name: "builder"
                         image: "python:3.11-slim"
@@ -101,15 +104,15 @@ controller:
 # NOTE: serviceAccount/persistence는 controller: 안이 아니라 최상위 키여야
 # 실제로 반영된다는 걸 helm template 검증으로 확인함 (5.9.62 기준)
 serviceAccount:
-  create: false
+  create: true
   name: jenkins-sa
-  # annotations:
-  #   eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/moongcheap-develop-jenkins-role   # [배포 후 기입]
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::840851421204:role/moongcheap-jenkins-role   # [배포 후 기입]
 
 persistence:
   enabled: true
   storageClass: "gp3"
-  size: "20Gi"
+  size: "2Gi"
   # NOTE: 이 Chart는 PVC 이름을 Release 이름 기준으로 자동 생성해서
   # 네이밍 규약서상 "jenkins-home-pvc"로 직접 맞추기는 어려움 — 팀 확인 필요 항목으로 남겨둠
 

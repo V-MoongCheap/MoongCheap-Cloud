@@ -11,25 +11,36 @@ pipeline {
         SERVICE_NAME   = 'backend'
         BUILD_LABEL    = 'java-builder'
         ECR_REPO       = 'moongcheap/backend'
-        ECR_REGISTRY   = '<AWS_ACCOUNT_ID>.dkr.ecr.ap-northeast-2.amazonaws.com'
+        ECR_REGISTRY   = '840851421204.dkr.ecr.ap-northeast-2.amazonaws.com'
         GITOPS_REPO_URL = 'https://github.com/V-MoongCheap/MoongCheap-Cloud.git'
-        ENVIRONMENT    = 'develop'
-        // BE/FE는 기본값 'Dockerfile' 그대로 사용.
-        // AI처럼 레포 안에 기능별 Dockerfile이 여러 개 있는 경우
-        // (예: Dockerfile.demand-clustering) 이 값만 바꿔서 쓰면 됨.
-        DOCKERFILE_PATH = 'Dockerfile'
+        DOCKERFILE_PATH  = 'Dockerfile'
     }
 
     stages {
         stage('Build') {
             agent { kubernetes { label BUILD_LABEL } }
             steps {
+                checkout scm
                 script {
-                    // environment{} 블록은 checkout 이전에 평가돼서 GIT_COMMIT이
-                    // 비어있을 수 있음. 그래서 checkout이 끝난 이 시점(첫 stage)에서
-                    // 계산해야 IMAGE_TAG에 "develop-null" 같은 값이 찍히는 걸 방지함.
-                    env.GIT_SHORT_SHA = env.GIT_COMMIT.take(7)
-                    env.IMAGE_TAG     = "${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
+                  if (env.BRANCH_NAME == 'main') {
+                      env.ENVIRONMENT = 'prod'
+                      env.BASE_BRANCH = 'main'
+                  } else if (env.BRANCH_NAME == 'develop') {
+                      env.ENVIRONMENT = 'develop'
+                      env.BASE_BRANCH = 'develop'
+                  } else {
+                      error "지원하지 않는 배포 브랜치입니다: ${env.BRANCH_NAME}"
+                  }
+
+                  env.GIT_SHORT_SHA = sh(
+                      script: 'git rev-parse --short=7 HEAD',
+                      returnStdout: true
+                  ).trim()
+
+                  env.IMAGE_TAG = "${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
+
+                  echo "Git Commit SHA: ${env.GIT_SHORT_SHA}"
+                  echo "Image Tag: ${env.IMAGE_TAG}"
                 }
                 container('builder') {
                     sh 'echo "TODO: 실제 빌드 명령으로 교체"'
@@ -85,13 +96,19 @@ pipeline {
                         sh '''
                           set -e
                           REPO_HOST="${GITOPS_REPO_URL#https://}"
-                          BRANCH_NAME="ci/update-${SERVICE_NAME}-${IMAGE_TAG}"
+                          BRANCH_NAME="ci/update-${SERVICE_NAME}-${IMAGE_TAG}-${BUILD_NUMBER}"
 
-                          # develop은 Ruleset(protect-develop)으로 직접 Push가 막혀있어서
-                          # 별도 작업 브랜치를 만들어 그 브랜치로 Push함.
+                          # 배포 대상 브랜치(main/develop)에는 직접 Push하지 않고
+                          # 해당 브랜치의 최신 상태를 기준으로 CI 작업 브랜치를 생성한다.
+                          #
+                          # develop → develop 환경
+                          # main    → prod 환경
                           git clone "https://${GIT_USER}:${GIT_TOKEN}@${REPO_HOST}" gitops-repo
                           cd gitops-repo
-                          git checkout -b "$BRANCH_NAME"
+
+                          git fetch origin "$BASE_BRANCH"
+
+                          git checkout -b "$BRANCH_NAME" "origin/$BASE_BRANCH"
 
                           OVERRIDE_FILE="gitops/values/overrides/${ENVIRONMENT}/${SERVICE_NAME}.yaml"
 
@@ -100,6 +117,8 @@ pipeline {
                           curl -sL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o /usr/local/bin/yq
                           chmod +x /usr/local/bin/yq
 
+                          # Jenkins가 ECR에 Push한 동일한 이미지 태그를
+                          # GitOps values override에 기록한다.
                           yq -i ".image.tag = \"${IMAGE_TAG}\"" "$OVERRIDE_FILE"
 
                           git config user.name "jenkins-ci"
@@ -108,14 +127,15 @@ pipeline {
                           git commit -m "ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}"
                           git push origin "$BRANCH_NAME"
 
-                          # develop으로 향하는 PR을 GitHub API로 자동 생성 (직접 병합이 아니라 PR만 만듦)
+                          # 현재 배포 환경에 맞는 base branch로 PR을 생성한다.
+                          # 직접 merge하지 않고 PR까지만 생성한다.
                           GITOPS_API_REPO="${REPO_HOST#github.com/}"
                           GITOPS_API_REPO="${GITOPS_API_REPO%.git}"
-                          curl -s -X POST \
+                          curl --fail-with-body -sS -X POST \
                             -H "Authorization: token ${GIT_TOKEN}" \
                             -H "Accept: application/vnd.github+json" \
                             "https://api.github.com/repos/${GITOPS_API_REPO}/pulls" \
-                            -d "{\"title\":\"ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}\",\"head\":\"${BRANCH_NAME}\",\"base\":\"develop\"}"
+                            -d "{\"title\":\"ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}\",\"head\":\"${BRANCH_NAME}\",\"base\":\"${BASE_BRANCH}\"}"
                         '''
                     }
                 }
@@ -125,7 +145,7 @@ pipeline {
 
     post {
         success {
-            echo "이미지 ${ECR_REPO}:${IMAGE_TAG} 빌드/푸시 및 GitOps 커밋 완료. ArgoCD Sync 대기 중."
+            echo "이미지 ${ECR_REPO}:${IMAGE_TAG} 빌드/푸시 및 GitOps PR 생성 완료. PR Merge 후 ArgoCD Sync 진행."
         }
         failure {
             echo "파이프라인 실패 — Build/Test/Push/GitOps 커밋 중 어느 단계인지 로그 확인 필요."
