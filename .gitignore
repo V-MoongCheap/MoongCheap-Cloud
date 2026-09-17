@@ -40,8 +40,10 @@ override.tf.json
 # Include override files you do wish to add to version control using negated pattern
 # !example_override.tf
 
-# Include tfplan files to ignore the plan output of command: terraform plan -out=tfplan
-# example: *tfplan*
+# tfplan 파일은 state와 같은 위험군(민감정보가 마스킹 없이 원본 그대로 저장될 수 있음)이라
+# 커밋 대상에서 제외한다. 2026-09-17: envs/develop/tfplan이 실수로 커밋/push된 걸 발견해
+# 이 규칙을 실제로 활성화함 — 그 전까진 예시 주석만 있고 적용 안 되고 있었음.
+*tfplan*
 
 # Ignore CLI configuration files
 .terraformrc
