@@ -18,7 +18,7 @@ prometheus:
   prometheusSpec:
     # Alloy가 remote_write로 밀어넣는 걸 받으려면 반드시 켜야 함 (기본값 false)
     enableRemoteWriteReceiver: true
-    retention: 15d
+    retention: 3d # 3 일간 데이터 보관 -> 추후 변경
     resources:
       requests:
         cpu: 250m
