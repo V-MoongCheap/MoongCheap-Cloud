@@ -1,3 +1,6 @@
+# outputs.tf의 aws_account_id 등에서 사용
+data "aws_caller_identity" "current" {}
+
 module "vpc" {
   source = "../../modules/vpc"
 
