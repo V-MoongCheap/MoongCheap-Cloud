@@ -37,6 +37,9 @@ singleBinary:
   persistence:
     enabled: true
     size: 20Gi
+    storageClassName: gp3
+  nodeSelector:
+    workload: backend-ai
 read:
   replicas: 0
 write:

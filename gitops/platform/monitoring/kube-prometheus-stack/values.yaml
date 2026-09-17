@@ -28,10 +28,13 @@ prometheus:
     storageSpec:
       volumeClaimTemplate:
         spec:
+          storageClassName: gp3
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
               storage: 20Gi
+    nodeSelector:
+      workload: backend-ai    
   service:
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
     
@@ -45,6 +48,8 @@ grafana:
   persistence:
     enabled: true
     size: 5Gi
+  nodeSelector:
+    workload: backend-ai
   additionalDataSources:
     - name: Loki
       type: loki
