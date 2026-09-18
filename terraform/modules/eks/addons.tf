@@ -33,6 +33,7 @@ resource "aws_eks_addon" "coredns" {
 
   depends_on = [
     aws_eks_node_group.fe,
+    aws_eks_node_group.system,
   ]
 
   tags = {
@@ -50,6 +51,7 @@ resource "aws_eks_addon" "ebs_csi_driver" {
 
   depends_on = [
     aws_eks_node_group.fe,
+    aws_eks_node_group.system,
   ]
 
   tags = {
@@ -66,6 +68,7 @@ resource "aws_eks_addon" "metrics_server" {
 
   depends_on = [
     aws_eks_node_group.fe,
+    aws_eks_node_group.system,
   ]
 
   tags = {

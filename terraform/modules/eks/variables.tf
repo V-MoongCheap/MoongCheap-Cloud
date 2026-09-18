@@ -9,6 +9,14 @@ variable "env" {
   description = "환경 구분 (develop/prod)"
 }
 
+# 현재 운영 중인 클러스터가 1.36이라(2026-09-17 describe-cluster 확인) 같은 값으로 고정.
+# 올릴 때는 Karpenter chart·Add-on 호환표를 먼저 확인하고 이 값만 바꿔 apply한다(다운그레이드 불가).
+variable "cluster_version" {
+  type        = string
+  description = "EKS Kubernetes minor 버전 (예: \"1.36\"). 패치 버전은 AWS가 관리"
+  default     = "1.36"
+}
+
 variable "cluster_role_arn" {
   type        = string
   description = "EKS 클러스터(컨트롤 플레인)용 IAM Role ARN (modules/iam 출력값)"
@@ -22,6 +30,11 @@ variable "subnet_ids" {
 variable "web_subnet_ids" {
   type        = list(string)
   description = "FE Worker Node Group을 배치할 WEB Private Subnet ID 목록 (아키텍처 설계서_V2 4.2)"
+}
+
+variable "was_subnet_ids" {
+  type        = list(string)
+  description = "System Worker Node Group을 배치할 WAS Private Subnet ID 목록 (DEC-1)"
 }
 
 variable "vpc_id" {
@@ -54,7 +67,7 @@ variable "be_ai_security_group_tags" {
 variable "cluster_admin_usernames" {
   type        = list(string)
   description = "클러스터 admin 권한을 받을 IAM 사용자 이름 목록"
-  default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-ys"]
+  default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-sw", "v-infra-ys"]
 }
 
 # 아키텍처 설계서_V2 4.2: FE Desired=2. Min/Max는 문서상 [확정 필요]로 남아있어
@@ -71,8 +84,79 @@ variable "fe_min_size" {
   default     = 1
 }
 
+variable "eso_namespace" {
+  type        = string
+  description = "External Secrets Operator가 설치될 Kubernetes Namespace (naming_convention_V2.md 5.1: infra)"
+  default     = "infra"
+}
+
+variable "eso_service_account_name" {
+  type        = string
+  description = "External Secrets Operator ServiceAccount 이름 — Helm Chart values의 serviceAccount.name과 반드시 일치해야 함"
+  default     = "external-secrets"
+}
+
+# ── Workload IRSA (C-5) ──────────────────────────────────────────────────
+# Jenkins Agent(kaniko)가 ECR에 push할 때 쓰는 SA. gitops/platform/jenkins/config.yaml의
+# namespace와 values.yaml의 serviceAccount.name과 반드시 일치해야 한다.
+variable "jenkins_namespace" {
+  type        = string
+  description = "Jenkins가 설치된 Kubernetes Namespace"
+  default     = "infra"
+}
+
+variable "jenkins_service_account_name" {
+  type        = string
+  description = "Jenkins Controller/Agent ServiceAccount 이름 (gitops values의 serviceAccount.name)"
+  default     = "jenkins-sa"
+}
+
+# BE Pod가 S3 Object 버킷에 접근할 때 쓰는 SA (naming_convention_V2.md 5.4: be-sa).
+# 서비스 Namespace는 moongcheap-{env}라 env로부터 계산한다.
+variable "be_service_account_name" {
+  type        = string
+  description = "Backend ServiceAccount 이름 (공통 Chart serviceAccount.name)"
+  default     = "be-sa"
+}
+
+variable "be_s3_bucket_arn" {
+  type        = string
+  description = "BE가 읽고 쓸 S3 Object 버킷 ARN (modules/s3 출력값). 빈 문자열이면 BE Role을 만들지 않는다"
+  default     = ""
+}
+
 variable "fe_max_size" {
   type        = number
   description = "FE Worker Node Group max size"
+  default     = 2
+}
+
+# DEC-1: BE·AI가 Karpenter(동적 노드)로 바뀌면서 ArgoCD·Karpenter Controller·Jenkins
+# Controller처럼 항상 떠있어야 하는 시스템 워크로드가 붙을 고정 자리가 없어졌다.
+# FE에 얹으면(대안 (b)) 사용자 트래픽과 클러스터 운영 워크로드가 자원을 두고 경합하므로,
+# 별도 System Node Group을 신설한다(대안 (a), 채택). t3.medium 1대(allocatable ~3.4GiB)로는
+# ArgoCD(~6 Pod)+Karpenter Controller(2 Pod, 권장 1Gi×2)+Jenkins Controller만으로도
+# 부족해 2대로 시작한다(추정 — 실측 후 조정).
+variable "system_instance_type" {
+  type        = string
+  description = "System Worker Node Group 인스턴스 타입 (ArgoCD/Karpenter Controller/Jenkins Controller)"
+  default     = "t3.medium"
+}
+
+variable "system_desired_size" {
+  type        = number
+  description = "System Worker Node Group desired size"
+  default     = 2
+}
+
+variable "system_min_size" {
+  type        = number
+  description = "System Worker Node Group min size"
+  default     = 2
+}
+
+variable "system_max_size" {
+  type        = number
+  description = "System Worker Node Group max size"
   default     = 2
 }

@@ -97,8 +97,8 @@ data "aws_iam_policy_document" "controller" {
   }
 
   statement {
-    sid    = "AllowScopedResourceCreationTagging"
-    effect = "Allow"
+    sid     = "AllowScopedResourceCreationTagging"
+    effect  = "Allow"
     actions = ["ec2:CreateTags"]
     resources = [
       "arn:aws:ec2:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:fleet/*",

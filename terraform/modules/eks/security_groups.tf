@@ -39,6 +39,27 @@ resource "aws_security_group" "be_ai" {
   })
 }
 
+# be_ai용 Launch Template은 없다 — Karpenter가 EC2NodeClass로 직접 인스턴스를 만든다.
+# 이 SG는 그대로 두고 Karpenter가 태그 기반 discovery로 찾아 쓴다 (RDS/ElastiCache/
+# OpenSearch가 이미 이 SG를 Source SG로 참조 중이라 새로 만들지 않는다).
+
+resource "aws_security_group" "system" {
+  name        = "${var.project}-${var.env}-system-sg"
+  description = "System Worker Node Group (ArgoCD/Karpenter Controller/Jenkins Controller)"
+  vpc_id      = var.vpc_id
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project}-${var.env}-system-sg"
+  }
+}
+
 resource "aws_launch_template" "fe" {
   name_prefix = "${var.project}-${var.env}-fe-lt-"
 
@@ -63,6 +84,24 @@ resource "aws_launch_template" "fe" {
   }
 }
 
-# be_ai용 Launch Template은 없다 — Karpenter가 EC2NodeClass로 직접 인스턴스를 만든다.
-# 이 SG는 그대로 두고 Karpenter가 태그 기반 discovery로 찾아 쓴다 (RDS/ElastiCache/
-# OpenSearch가 이미 이 SG를 Source SG로 참조 중이라 새로 만들지 않는다).
+resource "aws_launch_template" "system" {
+  name_prefix = "${var.project}-${var.env}-system-lt-"
+
+  network_interfaces {
+    security_groups = [
+      aws_security_group.system.id,
+      aws_eks_cluster.this.vpc_config[0].cluster_security_group_id,
+    ]
+  }
+
+  metadata_options {
+    http_tokens = "required"
+  }
+
+  tag_specifications {
+    resource_type = "instance"
+    tags = {
+      Name = "${var.project}-${var.env}-system-ng"
+    }
+  }
+}

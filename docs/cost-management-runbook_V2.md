@@ -59,7 +59,7 @@
 | 항목 | 변경 내용 | 비용 영향 |
 | --- | --- | --- |
 | **GPU** | GPU Node 미사용, AI도 CPU Pod로 운영 | 기존 GPU 비용 제거 |
-| **Worker** | FE `t3.small × 2`, BE/WAS `t3.large × N` | 작은 Node 다중 구성 |
+| **Worker** | FE `t3.small × 2`(Managed Node Group), BE/WAS `t3.large × N`(**Karpenter**, 0~4) | 작은 Node 다중 구성, BE/WAS는 Pod 없으면 0대 |
 | **DB** | **AWS RDS PostgreSQL, Multi-AZ, 50GB** | KT Cloud DB 제거, RDS 비용 발생 |
 | **Vector DB** | PostgreSQL에 `pgvector` 적용 | 별도 Vector DB 불필요 |
 | **Object Storage** | **Amazon S3** | KT Cloud Object Storage 제거 |
@@ -96,6 +96,15 @@ NAT 역할만 수행하면 되므로 상시 고성능이 필요 없고, 저렴�
     **Elastic IP 연결**(Public IPv4 주소는 시간당 별도 과금), Private
     Subnet Route Table의 default route를 NAT Instance ENI로 지정, 장애
     시 Terraform으로 재생성 가능하도록 스크립트화
+-   **[2026-09-17 이력]** 최초 apply 당시 AWS 계정이 **Free Tier 상태**여서
+    `t3a.micro`가 `InvalidParameterCombination: not eligible for Free Tier`로
+    생성 거부됐고, NAT가 없어 FE Node가 ECR에 못 나가 EKS Node Group이
+    30분 가까이 대기했다. 기종을 낮추지 않고 **결제수단 등록으로 계정
+    제약을 해제**해 해결했다. 계정을 새로 만들거나 바꾸면 이 조건을 먼저
+    확인할 것(Bootstrap Runbook §0.0, `docs_troubleshooting/…-05-*.md`).
+-   재생성 절차: NAT Instance는 ENI·EIP와 분리돼 있어(`modules/nat`)
+    `terraform apply -replace=module.nat.aws_instance.nat`로 인스턴스만
+    교체하면 라우팅·EIP는 유지된다.
 
 ### 5.2 NAT Instance 비용
 
@@ -135,9 +144,9 @@ NAT 역할만 수행하면 되므로 상시 고성능이 필요 없고, 저렴�
 
 > `$730.36`은 Public IPv4(EIP) 비용을 포함한 월간 상시 운영 Baseline이며
 > 실제 프로젝트 지출액과 동일하지 않다. `BE/WAS t3.large ×4`는 비용
-> 산정을 위한 기준 용량이며, 실제 운영에서는 `t3.large`를 기본 Worker
-> 규격으로 사용하여 Pod의 `requests` 및 부하에 따라 Node 수를 Auto
-> Scaling한다.
+> 산정을 위한 기준 용량이며, 실제 운영에서는 **Karpenter**가 `t3.large`를
+> 기본 Worker 규격으로 Pod의 `requests` 및 부하에 따라 Node 수를 0~4대
+> 사이에서 조정한다(NodePool `limits`가 상한).
 
 ## 6.2 실제 가동 패턴
 
@@ -164,11 +173,11 @@ Compute 운영시간은 다음을 기준으로 한다.
 
 현재는:
 
-    FE NodeGroup
+    FE NodeGroup (Managed)
     └─ t3.small ×2
 
-    BE/WAS NodeGroup
-    └─ t3.large × N
+    BE/WAS (Karpenter NodePool)
+    └─ t3.large × N (0 ≤ N ≤ 4)
        ├─ BE
        ├─ AI CPU Pods
        ├─ ArgoCD
@@ -178,8 +187,11 @@ Compute 운영시간은 다음을 기준으로 한다.
 로 운영한다.
 
 `BE/WAS t3.large ×4`는 비용 산정을 위한 기준 용량이며, 실제 운영에서는
-`t3.large`를 기본 Worker 규격으로 사용하여 Pod의 `requests` 및 부하에
-따라 Node 수를 Auto Scaling한다.
+Karpenter가 `t3.large`를 기본 Worker 규격으로 Pod의 `requests` 및 부하에
+따라 Node 수를 조정한다. Karpenter Node는 Terraform State 밖이므로 **Close
+시 Node Group `desired_size`로는 끌 수 없고**, BE/AI 워크로드를 0으로
+내리거나 NodePool `limits`를 0으로 바꿔 Karpenter가 회수하게 해야 한다
+(절차는 7.1·C-7 재설계 결과에 따름).
 
 System Add-on을 위한 별도 전용 Node는 초기에는 생성하지 않고,
 Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시

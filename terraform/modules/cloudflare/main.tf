@@ -24,3 +24,16 @@ resource "cloudflare_record" "tunnel" {
   content = "${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com"
   proxied = true
 }
+
+# C-12 / J-3: extra_subdomains에 적힌 호스트마다 동일 Tunnel로 가는 CNAME.
+# 호스트 → 클러스터 내부 Service 매핑은 여기가 아니라 cloudflared(config_src = "local")와
+# ingress-nginx 규칙(gitops, K-6)이 담당한다. 이 모듈은 DNS까지만.
+resource "cloudflare_record" "extra" {
+  for_each = toset(var.extra_subdomains)
+
+  zone_id = var.zone_id
+  name    = each.value
+  type    = "CNAME"
+  content = "${cloudflare_zero_trust_tunnel_cloudflared.this.id}.cfargotunnel.com"
+  proxied = true
+}
