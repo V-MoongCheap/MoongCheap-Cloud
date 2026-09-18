@@ -59,6 +59,11 @@ module "eks" {
     "karpenter.sh/discovery" = "moongcheap-prod-eks"
   }
 
+  # prod는 아직 생성 전이라 develop처럼 "최초 생성자만 예외 처리"하는 방식 대신
+  # 처음부터 AWS 자동 admin 부여를 꺼서, 팀원 전원을 cluster_admin_usernames로
+  # 예외 없이 동일하게 관리한다 (D-17, modules/eks/access.tf 주석 참고).
+  bootstrap_cluster_creator_admin_permissions = false
+
   # cluster_role_arn은 Role 생성 직후 알 수 있지만, 실제로는 정책(AmazonEKSClusterPolicy)이
   # 붙어있어야 클러스터 생성이 성공한다. output 값만으로는 이 순서가 보장되지 않아
   # module.iam 전체(정책 attachment 포함)가 끝난 뒤에 실행되도록 명시적으로 의존성을 건다.
