@@ -44,7 +44,10 @@ pipeline {
                   echo "Image Tag: ${env.IMAGE_TAG}"
                 }
                 container('builder') {
-                    sh 'echo "TODO: 실제 빌드 명령으로 교체"'
+                    sh '''
+                      chmod +x gradlew
+                      ./gradlew clean build -x test --no-daemon
+                    '''
                 }
                 stash name: 'build-output', includes: '**', excludes: '.git/**'
             }
@@ -55,7 +58,7 @@ pipeline {
             steps {
                 unstash 'build-output'
                 container('builder') {
-                    sh 'echo "TODO: 실제 테스트 명령으로 교체"'
+                    sh './gradlew test --no-daemon'
                 }
             }
         }
