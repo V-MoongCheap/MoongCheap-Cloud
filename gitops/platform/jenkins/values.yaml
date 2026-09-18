@@ -24,6 +24,7 @@ controller:
     - configuration-as-code:latest
     - credentials-binding:latest
     - pipeline-utility-steps:latest
+    - sonar:latest
 
   JCasC:
     configScripts:
