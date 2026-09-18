@@ -3,7 +3,7 @@ nameOverride: ai
 image:
   repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/ai"
 
-containerPort: 8000
+containerPort: 8081
 
 service:
   port: 80
