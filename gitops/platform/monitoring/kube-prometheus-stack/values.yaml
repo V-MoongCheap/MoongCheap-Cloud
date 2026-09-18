@@ -90,6 +90,11 @@ grafana:
         gnetId: 24574
         revision: 2
         datasource: Loki
+      node-exporter-full:
+        gnetId: 1860
+        revision: 45
+        datasource: Prometheus
+
 
   # 알림 링크(Source/Silence)가 실제 접속 주소로 나가게 함
   grafana.ini:
