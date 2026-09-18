@@ -62,7 +62,7 @@ variable "be_ai_security_group_tags" {
 variable "cluster_admin_usernames" {
   type        = list(string)
   description = "클러스터 admin 권한을 받을 IAM 사용자 이름 목록"
-  default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-ys"]
+  default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-sw", "v-infra-ys"]
 }
 
 # 아키텍처 설계서_V2 4.2: FE Desired=2. Min/Max는 문서상 [확정 필요]로 남아있어
