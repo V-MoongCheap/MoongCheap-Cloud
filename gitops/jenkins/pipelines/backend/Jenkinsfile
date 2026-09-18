@@ -110,6 +110,25 @@ pipeline {
             }
         }
 
+        stage('Container Image Scan') {
+            agent { kubernetes { label BUILD_LABEL } }
+            steps {
+                container('builder') {
+                    sh '''
+                      TRIVY_VERSION=0.56.2
+                      curl -sSL -o trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+                      tar -xzf trivy.tar.gz trivy
+                      chmod +x trivy
+                      pip install --quiet awscli || pip3 install --quiet awscli
+                    '''
+                    sh """
+                      ECR_PASSWORD=\$(aws ecr get-login-password --region ap-northeast-2)
+                      ./trivy image --username AWS --password "\$ECR_PASSWORD" --severity CRITICAL --exit-code 1 ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
+                    """
+                }
+            }
+        }
+
         stage('Update GitOps Repo (Image Tag)') {
             agent { kubernetes { label 'node-builder' } }
             steps {
