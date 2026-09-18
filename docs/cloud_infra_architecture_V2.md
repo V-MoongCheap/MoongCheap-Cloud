@@ -250,7 +250,7 @@ KT Cloud MGMT 서버 (cron)
    │     └─ schedule.csv 변경 시 update-cron.sh → Open/Close cron 갱신
    ├─ open-infra.sh   ┐
    └─ close-infra.sh  ┘── AWS CLI (IAM User Access Key, 최소 권한) ──▶ AWS API
-                                                                      ├─ EKS Managed Node Group desired 0↔2
+                                                                      ├─ EKS Managed Node Group(system-ng·fe-ng) desired 0↔2
                                                                       ├─ Karpenter 노드 EC2 종료 (Close)
                                                                       └─ NAT Instance stop/start
 ```
@@ -1071,8 +1071,8 @@ AWS Infrastructure  ◀── 같은 리소스 ──▶  Compute만 desired 0�
 
 두 경로가 충돌하지 않도록 Terraform 쪽에서 다음을 보장한다.
 
-- FE Managed Node Group `desired_size`는 `ignore_changes` — Close 중 `apply`가 노드를 다시 띄우지 않는다.
-- FE Managed Node Group `min_size = 0` — `desired 0` API 호출이 거부되지 않는다.
+- Managed Node Group(system-ng·fe-ng) `desired_size`는 `ignore_changes` — Close 중 `apply`가 노드를 다시 띄우지 않는다.
+- Managed Node Group(system-ng·fe-ng) `min_size = 0` — `desired 0` API 호출이 거부되지 않는다. (system-ng는 S-1 생성 시 같은 설정으로 만들 것)
 - NAT Instance는 `aws_instance`의 실행 상태(running/stopped)를 Terraform이 diff로 잡지 않으므로 별도 조치 없음. ENI·EIP가 인스턴스와 분리돼 있어 stop/start 후에도 IP·라우트가 유지된다.
 
 로컬 Terraform 실행 환경은 각자의 IAM User(Access Entry에 등록된 `v-infra-*`)를 사용하며, Remote State(8.4)와 S3 Lockfile로 동시 실행을 제어한다.
@@ -1113,7 +1113,7 @@ State Locking은 별도 DynamoDB Table 없이 S3 Backend의 `use_lockfile = true
 
 | Resource | 분류 | 일반 Close 시 정책 |
 | -------------------------- | ------------------------ | -------------------------- |
-| FE EKS Managed Node Group  | 재생성 가능                   | `desired_size` 0 (Node Group 자체는 유지) |
+| EKS Managed Node Group (system-ng·fe-ng) | 재생성 가능     | `desired_size` 0 (Node Group 자체는 유지). system-ng가 내려가면 ArgoCD·Karpenter 컨트롤러도 함께 정지 |
 | BE·AI Karpenter 노드        | 재생성 가능                   | EC2 종료 (NodePool·EC2NodeClass는 유지, Open 후 수요에 따라 재생성) |
 | EKS Cluster (Control Plane) | 상시                      | **유지** (삭제·재생성 안 함) |
 | NAT Instance               | 재생성 가능                   | **stop** (삭제 아님. ENI·EIP 유지) |

@@ -27,16 +27,19 @@ ENV="develop"
 EKS_CLUSTER_NAME="${PROJECT}-${ENV}-eks"
 
 # Open 시 desired로 올리고 Close 시 0으로 내리는 Managed Node Group 목록 ("이름=open시 desired").
-# Close가 되려면 Terraform 쪽 min_size가 0이어야 한다(modules/eks fe_min_size).
-# DEC-1로 system 노드 그룹이 생기면 여기에 한 줄 추가한다.
+# 순서 = Open 순서(컨트롤러가 뜨는 system부터). Close는 전부 0으로 내리므로 순서 무관.
+# Close가 되려면 Terraform 쪽 min_size가 0이어야 한다(modules/eks fe_min_size / system_min_size).
+#   - system-ng: ArgoCD·Karpenter 컨트롤러 등 고정 노드 (DEC-1, t3.medium ×2, BE·AI Subnet)
+#   - fe-ng    : FE 워크로드 (t3.small ×2)
 MANAGED_NODEGROUPS=(
+  "${PROJECT}-${ENV}-system-ng=2"
   "${PROJECT}-${ENV}-fe-ng=2"
 )
 
 # BE·AI는 Karpenter 노드라 Node Group이 없다. Close 때는 아래 NodePool 태그를 가진 EC2를
 # 직접 종료하고, Open 때는 Pod 수요에 따라 Karpenter가 다시 띄우므로 할 일이 없다.
-# (Karpenter 컨트롤러 자체가 FE 노드 위에서 돌기 때문에 FE를 0으로 내린 뒤 종료해야
-#  재프로비저닝이 안 된다 — close-infra.sh 순서 참고)
+# (Karpenter 컨트롤러가 system-ng 위에서 돌기 때문에 Managed Node Group을 전부 0으로 내린
+#  뒤 종료해야 재프로비저닝이 안 된다 — close-infra.sh 순서 참고)
 KARPENTER_NODEPOOL_TAG_KEY="karpenter.sh/nodepool"
 KARPENTER_NODEPOOL_NAMES=("be-ai")
 
@@ -140,11 +143,18 @@ wait_until() {
 }
 
 # ── EKS Managed Node Group ───────────────────────────────────────────────
-# 출력: status desired min max  (탭 구분)
+# 출력: status desired min max (탭 구분). Node Group이 없으면 return 2, 그 외 실패 return 1.
 nodegroup_info() {
-  aws eks describe-nodegroup --cluster-name "${EKS_CLUSTER_NAME}" --nodegroup-name "$1" \
-    --query 'nodegroup.[status,scalingConfig.desiredSize,scalingConfig.minSize,scalingConfig.maxSize]' \
-    --output text
+  local out
+  if out="$(aws eks describe-nodegroup --cluster-name "${EKS_CLUSTER_NAME}" --nodegroup-name "$1" \
+      --query 'nodegroup.[status,scalingConfig.desiredSize,scalingConfig.minSize,scalingConfig.maxSize]' \
+      --output text 2>&1)"; then
+    printf '%s\n' "${out}"
+    return 0
+  fi
+  [[ "${out}" == *ResourceNotFoundException* ]] && return 2
+  printf '%s\n' "${out}" >&2
+  return 1
 }
 
 # Node Group에 속한 EC2 중 pending/running 개수
@@ -166,12 +176,19 @@ _nodegroup_count_is() {
   [[ "$(nodegroup_running_count "$1")" == "$2" ]]
 }
 
-# scale_nodegroup <이름> <목표 desired>  — 이미 목표값이면 API 호출 없이 통과(idempotent)
-scale_nodegroup() {
+# request_nodegroup_scale <이름> <목표 desired>
+#   API 호출만 하고 기다리지 않는다. 이미 목표값이면 호출 없이 통과(idempotent).
+#   return 0 = 요청됨/이미 목표, 2 = Node Group 없음(건너뜀), 그 외 = die
+request_nodegroup_scale() {
   local ng="$1" target="$2"
-  local status desired min max
-  IFS=$'\t' read -r status desired min max < <(nodegroup_info "${ng}") \
-    || die "Node Group 조회 실패: ${ng}"
+  local ng_info status desired min max rc
+  ng_info="$(nodegroup_info "${ng}")" && rc=0 || rc=$?
+  if (( rc == 2 )); then
+    warn "${ng}: Node Group 없음 — 건너뜀 (아직 생성 전이거나 이름 확인 필요: common.sh MANAGED_NODEGROUPS)"
+    return 2
+  fi
+  (( rc == 0 )) || die "${ng}: Node Group 조회 실패"
+  IFS=$'\t' read -r status desired min max <<< "${ng_info}"
 
   if [[ "${status}" == "UPDATING" ]]; then
     warn "${ng}: 이전 업데이트 진행 중(UPDATING) — ACTIVE까지 대기"
@@ -181,7 +198,7 @@ scale_nodegroup() {
   [[ "${status}" == "ACTIVE" ]] || die "${ng}: 상태 ${status} — 스케일 불가"
 
   if (( target < min || target > max )); then
-    die "${ng}: 목표 desired=${target}가 min=${min}~max=${max} 범위 밖. Terraform(modules/eks fe_min_size/fe_max_size)에서 범위를 먼저 조정할 것"
+    die "${ng}: 목표 desired=${target}가 min=${min}~max=${max} 범위 밖. Terraform(modules/eks *_min_size/*_max_size)에서 범위를 먼저 조정할 것"
   fi
 
   if [[ "${desired}" == "${target}" ]]; then
@@ -192,9 +209,41 @@ scale_nodegroup() {
       --scaling-config "desiredSize=${target}" --query 'update.id' --output text >/dev/null \
       || die "${ng}: update-nodegroup-config 실패"
   fi
+}
 
+# wait_nodegroup_scaled <이름> <목표 desired>
+wait_nodegroup_scaled() {
+  local ng="$1" target="$2"
   wait_until "${ng} ACTIVE" _nodegroup_is_active "${ng}"
   wait_until "${ng} 실행 인스턴스 ${target}대" _nodegroup_count_is "${ng}" "${target}"
+}
+
+# scale_managed_nodegroups open|close
+#   MANAGED_NODEGROUPS 전부에 요청을 먼저 다 보내고(병렬로 스케일되게) 그 다음 순서대로 기다린다.
+scale_managed_nodegroups() {
+  local mode="$1" entry ng desired target rc
+  local -a pending=()
+  for entry in "${MANAGED_NODEGROUPS[@]}"; do
+    ng="${entry%%=*}"; desired="${entry##*=}"
+    target="${desired}"; [[ "${mode}" == "close" ]] && target=0
+    request_nodegroup_scale "${ng}" "${target}" && rc=0 || rc=$?
+    (( rc == 2 )) && continue
+    (( rc == 0 )) || exit "${rc}"
+    pending+=("${ng}=${target}")
+  done
+  for entry in ${pending[@]+"${pending[@]}"}; do
+    wait_nodegroup_scaled "${entry%%=*}" "${entry##*=}"
+  done
+}
+
+# 상태 로그용 한 줄. Node Group이 없으면 "(없음)"
+nodegroup_summary() {
+  local ng="$1" ng_info rc status desired min max
+  ng_info="$(nodegroup_info "${ng}")" && rc=0 || rc=$?
+  if (( rc == 2 )); then echo "${ng}: (없음)"; return 0; fi
+  (( rc == 0 )) || { echo "${ng}: 조회 실패"; return 0; }
+  IFS=$'\t' read -r status desired min max <<< "${ng_info}"
+  echo "${ng}: ${status} desired=${desired} (min=${min}, max=${max}) running=$(nodegroup_running_count "${ng}")"
 }
 
 # ── NAT Instance ─────────────────────────────────────────────────────────
