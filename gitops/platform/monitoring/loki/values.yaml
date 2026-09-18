@@ -42,7 +42,7 @@ singleBinary:
     size: 20Gi
     storageClassName: gp3
   nodeSelector:
-    workload: backend-ai
+    workload: system
 read:
   replicas: 0
 write:

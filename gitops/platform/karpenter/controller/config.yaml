@@ -1,0 +1,7 @@
+name: karpenter
+namespace: kube-system
+
+helm:
+  repoURL: public.ecr.aws/karpenter
+  chart: karpenter
+  version: "1.0.8"
