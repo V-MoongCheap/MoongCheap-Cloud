@@ -37,7 +37,8 @@ output "cluster_security_group_id" {
 
 output "node_group_names" {
   value = {
-    fe = aws_eks_node_group.fe.node_group_name
+    fe     = aws_eks_node_group.fe.node_group_name
+    system = aws_eks_node_group.system.node_group_name
   }
   description = "생성된 Managed Node Group 이름 목록 (BE·AI는 Karpenter가 대체해서 없음)"
 }

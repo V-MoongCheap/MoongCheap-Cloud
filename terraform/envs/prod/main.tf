@@ -52,6 +52,7 @@ module "eks" {
   # 컨트롤 플레인은 WEB+WAS Private Subnet 전부에 ENI를 둘 수 있어야 하므로 합집합을 전달한다.
   subnet_ids     = concat(module.vpc.web_private_subnet_ids, module.vpc.was_private_subnet_ids)
   web_subnet_ids = module.vpc.web_private_subnet_ids
+  was_subnet_ids = module.vpc.was_private_subnet_ids
   vpc_id         = module.vpc.vpc_id
 
   be_ai_security_group_tags = {

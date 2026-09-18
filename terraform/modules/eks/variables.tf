@@ -32,6 +32,11 @@ variable "web_subnet_ids" {
   description = "FE Worker Node Group을 배치할 WEB Private Subnet ID 목록 (아키텍처 설계서_V2 4.2)"
 }
 
+variable "was_subnet_ids" {
+  type        = list(string)
+  description = "System Worker Node Group을 배치할 WAS Private Subnet ID 목록 (DEC-1)"
+}
+
 variable "vpc_id" {
   type        = string
   description = "FE/BE·AI 전용 Security Group을 생성할 VPC ID (modules/vpc 출력값)"
@@ -124,5 +129,35 @@ variable "be_s3_bucket_arn" {
 variable "fe_max_size" {
   type        = number
   description = "FE Worker Node Group max size"
+  default     = 2
+}
+
+# DEC-1: BE·AI가 Karpenter(동적 노드)로 바뀌면서 ArgoCD·Karpenter Controller·Jenkins
+# Controller처럼 항상 떠있어야 하는 시스템 워크로드가 붙을 고정 자리가 없어졌다.
+# FE에 얹으면(대안 (b)) 사용자 트래픽과 클러스터 운영 워크로드가 자원을 두고 경합하므로,
+# 별도 System Node Group을 신설한다(대안 (a), 채택). t3.medium 1대(allocatable ~3.4GiB)로는
+# ArgoCD(~6 Pod)+Karpenter Controller(2 Pod, 권장 1Gi×2)+Jenkins Controller만으로도
+# 부족해 2대로 시작한다(추정 — 실측 후 조정).
+variable "system_instance_type" {
+  type        = string
+  description = "System Worker Node Group 인스턴스 타입 (ArgoCD/Karpenter Controller/Jenkins Controller)"
+  default     = "t3.medium"
+}
+
+variable "system_desired_size" {
+  type        = number
+  description = "System Worker Node Group desired size"
+  default     = 2
+}
+
+variable "system_min_size" {
+  type        = number
+  description = "System Worker Node Group min size"
+  default     = 2
+}
+
+variable "system_max_size" {
+  type        = number
+  description = "System Worker Node Group max size"
   default     = 2
 }
