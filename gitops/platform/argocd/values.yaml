@@ -1,0 +1,27 @@
+controller:
+  nodeSelector:
+    workload: system
+
+server:
+  nodeSelector:
+    workload: system
+
+repoServer:
+  nodeSelector:
+    workload: system
+
+applicationSet:
+  nodeSelector:
+    workload: system
+
+redis:
+  nodeSelector:
+    workload: system
+
+dex:
+  nodeSelector:
+    workload: system
+
+notifications:
+  nodeSelector:
+    workload: system

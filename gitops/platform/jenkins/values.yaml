@@ -104,6 +104,10 @@ controller:
   ingress:
     enabled: false
 
+  nodeSelector:
+    workload: system
+
+
 # NOTE: serviceAccount/persistence는 controller: 안이 아니라 최상위 키여야
 # 실제로 반영된다는 걸 helm template 검증으로 확인함 (5.9.62 기준)
 serviceAccount:
