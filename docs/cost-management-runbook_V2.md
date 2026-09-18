@@ -171,7 +171,13 @@ Compute 운영시간은 다음을 기준으로 한다.
 
 기존의 FE/BE/AI/GPU Node별 여유 Capacity 계산은 삭제한다.
 
-현재는:
+현재는 `[개정 2026-09-18, DEC-1]`:
+
+    System NodeGroup (Managed) — 컨트롤러 고정 노드, BE·AI(WAS) Subnet
+    └─ t3.medium ×2
+       ├─ ArgoCD
+       ├─ Karpenter Controller
+       └─ (기타 클러스터 컨트롤러)
 
     FE NodeGroup (Managed)
     └─ t3.small ×2
@@ -180,22 +186,25 @@ Compute 운영시간은 다음을 기준으로 한다.
     └─ t3.large × N (0 ≤ N ≤ 4)
        ├─ BE
        ├─ AI CPU Pods
-       ├─ ArgoCD
        ├─ Jenkins
        └─ Observability
 
-로 운영한다.
+로 운영한다. System NodeGroup은 Karpenter가 자기 자신을 띄울 수 없기
+때문에 필요하며(컨트롤러가 Karpenter 노드에 있으면 노드 회수 시 컨트롤러도
+같이 사라짐), Open/Close 시 FE와 같은 방식으로 `desired_size` 0↔2로
+관리한다(7.1). 비용 표(4장·6.1)의 반영은 설계서 4.2 개정과 함께 한다.
 
 `BE/WAS t3.large ×4`는 비용 산정을 위한 기준 용량이며, 실제 운영에서는
 Karpenter가 `t3.large`를 기본 Worker 규격으로 Pod의 `requests` 및 부하에
 따라 Node 수를 조정한다. Karpenter Node는 Terraform State 밖이므로 **Close
-시 Node Group `desired_size`로는 끌 수 없고**, BE/AI 워크로드를 0으로
-내리거나 NodePool `limits`를 0으로 바꿔 Karpenter가 회수하게 해야 한다
-(절차는 7.1·C-7 재설계 결과에 따름).
+시 Node Group `desired_size`로는 끌 수 없고**, MGMT 서버가 System·FE Node
+Group을 0으로 내린 뒤(Karpenter 컨트롤러 종료) `karpenter.sh/nodepool`
+태그가 붙은 EC2를 직접 종료한다. Open 시에는 Pod 수요에 따라 Karpenter가
+다시 띄운다(절차는 7.1).
 
-System Add-on을 위한 별도 전용 Node는 초기에는 생성하지 않고,
-Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
-`t3.large` 단위 Scale-out을 우선 적용한다.
+~~System Add-on을 위한 별도 전용 Node는 초기에는 생성하지 않고~~ →
+`[개정 2026-09-18]` DEC-1로 System NodeGroup(t3.medium ×2)을 두기로 확정.
+BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scale-out한다.
 
 ------------------------------------------------------------------------
 
@@ -208,12 +217,14 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 | **9/21\~9/27** | 통합 테스트 | 전체 서비스 운영, 실제 CPU/Memory 측정 |
 | **9/28\~10/6** | Final | 리허설/발표에 필요한 리소스 유지, 종료 후 정리 |
 
-### 7.1 야간/주말 운영
+### 7.1 야간/주말 운영 `[개정 2026-09-18]`
 
 > **비작업 시간 리소스 운영**
 >
-> -   자동화는 별도로 구성하지 않고 관리 VM에서 Terraform
->     `apply/destroy`를 수행한다.
+> -   KT Cloud MGMT 서버의 cron이 **AWS CLI로 Compute만 켜고 끈다**
+>     (`terraform/scripts/mgmt/{open,close}-infra.sh`). Terraform
+>     `apply/destroy`는 Open/Close에 쓰지 않으며, 인프라 생성·변경 시
+>     인프라 담당자가 로컬에서 수동으로 수행한다.
 > -   담당: **정 최상우 / 부 양재혁**
 > -   평일: **09:00\~22:00** 기본 운영
 > -   추가 작업 요청 시: **익일 01:00까지 연장**
@@ -221,7 +232,21 @@ Prometheus/Grafana를 통해 실제 사용량을 확인한 뒤 Node 부족 시
 >     시간만 운영**
 > -   추석 연휴: 작업 요청이 있는 날만 **09:00\~22:00 운영**
 > -   RDS/S3/EBS/ElastiCache/OpenSearch 등 Stateful·관리형 Resource는
->     일반 Compute `destroy` 대상과 구분하여 보호한다.
+>     Close 대상에서 제외한다(스크립트가 건드리지 않음).
+
+**Close가 하는 일 (순서대로)** — 역순이 Open
+
+| 순서 | 대상 | Close | Open | 방식 |
+| --- | --- | --- | --- | --- |
+| 1 | Managed Node Group — `system-ng`(컨트롤러, t3.medium ×2) · `fe-ng`(FE, t3.small ×2) | `desired_size` 0 | `desired_size` 2 (system → fe 순) | `eks update-nodegroup-config` (Terraform `*_min_size=0`, `desired_size`는 `ignore_changes` — system-ng 생성 시(S-1) 동일 적용 필요) |
+| 2 | BE·AI Karpenter 노드 | EC2 종료 (`karpenter.sh/nodepool` 태그로 조회) | 없음 — Pod 수요가 생기면 Karpenter가 다시 띄움 | `ec2 terminate-instances`. Karpenter 컨트롤러가 system-ng와 함께 내려간 뒤라 재프로비저닝 안 됨 |
+| 3 | NAT Instance | `stop` | `start` (노드보다 먼저) | `ec2 stop/start-instances`. ENI·EIP가 분리돼 있어 IP·라우트 유지 |
+
+**Close 상태에서도 계속 나가는 비용**: EKS Control Plane + RDS + ElastiCache + OpenSearch ≈ **$345/월**(6.1). Close로 줄어드는 것은 Node(FE·BE·AI) + NAT 실행 시간분이다.
+
+**스케줄 변경 방법**: `terraform/scripts/mgmt/schedule.csv`(형식 `action,time,days,enabled,memo` — 예 `open,09:00,mon-fri,true,평일 운영 시작`)를 고쳐 `develop`에 머지하면 MGMT 서버가 5분 이내에 crontab을 갱신한다. **당일 변경도 반영된다** — 변경 전후 CSV로 계산한 "지금 있어야 할 상태"(직전 이벤트가 open인지 close인지)가 달라지면 `reconcile.sh`가 즉시 그 상태로 맞춘다(예: 토요일 열려 있는 중에 `close,15:00,sat`를 15:03에 머지 → 15:05 안에 닫힘). 기대 상태가 안 바뀌는 변경(평일 시각 조정 등)은 다음 cron 시각부터 적용되고 현재 상태는 건드리지 않으므로, 수동 연장 운영 중에도 안전하다. 임시 연장(익일 01:00 등)은 MGMT 서버에서 `open-infra.sh`/`close-infra.sh`를 수동 실행한다. MGMT 서버가 꺼져 있어 cron을 놓쳤으면 `reconcile.sh`를 수동 실행해 복구한다. MGMT 서버 초기 설정과 IAM 최소 권한은 `V-MoongCheap/docs/2026-09-18-mgmt-server-setup-guide.md`, 정책 JSON은 `terraform/scripts/mgmt/mgmt-iam-policy.json`.
+
+**주의**: `schedule.csv` PR은 머지 즉시 노드를 내릴 수 있다 — close를 앞당기는 변경은 머지 시각을 팀에 알린다. Close는 drain 없이 노드를 내리므로 실행 중인 Pod는 즉시 종료된다. Jenkins 빌드·배치 작업은 Close 시각 전에 끝나야 한다. BE·AI EBS PVC는 AZ 고정이라 Open 후 다른 AZ에 노드가 뜨면 해당 Pod가 Pending에 걸릴 수 있다(설계서 4.4·7.2 — AZ 정책 [확정 필요]).
 
 ------------------------------------------------------------------------
 

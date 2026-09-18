@@ -390,7 +390,16 @@ terraform/
 │       └── terraform.tfvars.example
 │
 └── scripts/
-    └── pre-destroy-karpenter.sh
+    ├── pre-destroy-karpenter.sh
+    └── mgmt/                        # KT Cloud MGMT 서버 Open/Close 자동화 (Runbook 7.1)
+        ├── common.sh
+        ├── open-infra.sh
+        ├── close-infra.sh
+        ├── sync-repo.sh
+        ├── update-cron.sh
+        ├── reconcile.sh
+        ├── schedule.csv
+        └── mgmt-iam-policy.json
 ```
 
   Module          주요 관리 Resource
@@ -412,9 +421,17 @@ terraform/
 Security Group은 해당 Resource를 소유하는 Module에서 관리하는 것을
 기본으로 한다.
 
-`terraform/scripts/`에는 Terraform 실행 전후에 필요한 보조 스크립트만 둔다
+`terraform/scripts/`에는 Terraform 실행 전후에 필요한 보조 스크립트
 (예: Karpenter 노드는 State 밖이라 `destroy` 전에 NodeClaim을 정리하는
-`pre-destroy-karpenter.sh`). 파일명은 `{시점}-{대상}.sh` 형태로 한다.
+`pre-destroy-karpenter.sh`)와, Terraform 밖에서 AWS 리소스를 운영하는
+스크립트를 둔다. 파일명은 `{시점|동작}-{대상}.sh` 형태로 한다.
+
+`terraform/scripts/mgmt/`는 KT Cloud MGMT 서버가 cron으로 실행하는
+Open/Close 자동화 전용이다. `develop`에 머지되면 MGMT 서버가 5분 이내에
+그대로 가져가 실행하므로 **이 디렉토리 변경은 운영에 즉시 반영된다** —
+`terraform/**` Review 규칙(Git Convention 7.1)을 반드시 거친다.
+`schedule.csv`가 Open/Close 시각의 단일 기준이며, MGMT 서버의 crontab을
+직접 수정하지 않는다.
 
 ------------------------------------------------------------------------
 

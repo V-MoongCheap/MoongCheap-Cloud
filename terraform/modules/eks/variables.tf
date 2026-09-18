@@ -70,18 +70,19 @@ variable "cluster_admin_usernames" {
   default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-sw", "v-infra-ys"]
 }
 
-# 아키텍처 설계서_V2 4.2: FE Desired=2. Min/Max는 문서상 [확정 필요]로 남아있어
-# 우선 최소 비용으로 안전하게 기본값을 잡고, 팀 확정 후 조정한다.
+# 아키텍처 설계서_V2 4.2: FE Desired=2(Open 시). Runbook 7.1의 Close는 MGMT 서버가
+# EKS API로 desired를 0으로 내리는 방식이라 min_size가 0이어야 하고, 그 뒤 apply가
+# desired를 되돌리지 않도록 node_groups.tf에서 desired_size를 ignore_changes 처리한다.
 variable "fe_desired_size" {
   type        = number
-  description = "FE Worker Node Group desired size"
+  description = "FE Worker Node Group desired size (최초 생성 시 값. 이후 Open/Close 스크립트가 바꾸며 Terraform은 무시)"
   default     = 2
 }
 
 variable "fe_min_size" {
   type        = number
-  description = "FE Worker Node Group min size"
-  default     = 1
+  description = "FE Worker Node Group min size (Close 때 desired=0이 가능하려면 0이어야 함)"
+  default     = 0
 }
 
 variable "eso_namespace" {
@@ -151,8 +152,8 @@ variable "system_desired_size" {
 
 variable "system_min_size" {
   type        = number
-  description = "System Worker Node Group min size"
-  default     = 2
+  description = "System Worker Node Group min size (Close 때 desired=0이 가능하려면 0이어야 함 — Runbook 7.1)"
+  default     = 0
 }
 
 variable "system_max_size" {
