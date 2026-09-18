@@ -84,12 +84,17 @@ variable "bootstrap_cluster_creator_admin_permissions" {
 
 # bootstrap_cluster_creator_admin_permissions = true인 환경에서만 의미가 있다.
 # "지금 apply하는 사람"이 아니라 "이 클러스터를 최초로 만든 사람"으로 고정해야
-# 한다 — develop은 v-infra-jh가 최초 생성자임을 AWS에 직접 확인함(access entry에
-# Terraform 태그가 없음 = AWS 자동 생성).
+# 한다. develop은 v-infra-jh가 최초 생성자였으나(AWS 자동 생성, Terraform 태그
+# 없음으로 확인), 이 변수를 고치기 전의 버그 있는 코드가 그 자동 생성 항목
+# 자체를 지워버렸다(2026-09-18 실측). AWS의 자동 부여는 클러스터 생성 시점에
+# 딱 한 번만 발생해 다시 살아나지 않으므로, 더 이상 보호할 대상이 없어 기본값을
+# 빈 문자열로 둔다 — 이러면 team_admins가 아무도 빼지 않아 jh도 나머지처럼
+# Terraform이 정상적으로 관리한다. 앞으로 클러스터를 재생성해서 실제로 자동
+# admin을 받는 사람이 생기면, 그때 그 사람 이름으로 이 값을 다시 채울 것.
 variable "cluster_creator_username" {
   type        = string
-  description = "이 클러스터를 최초로 apply해서 AWS 자동 admin을 받은 IAM 사용자 이름"
-  default     = "v-infra-jh"
+  description = "이 클러스터를 최초로 apply해서 AWS 자동 admin을 받은 IAM 사용자 이름 (없으면 빈 문자열)"
+  default     = ""
 }
 
 # 아키텍처 설계서_V2 4.2: FE Desired=2(Open 시). Runbook 7.1의 Close는 MGMT 서버가
