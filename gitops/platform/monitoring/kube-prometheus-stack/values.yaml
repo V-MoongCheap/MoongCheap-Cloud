@@ -34,7 +34,7 @@ prometheus:
             requests:
               storage: 20Gi
     nodeSelector:
-      workload: backend-ai    
+      workload: system  
   service:
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
     
@@ -50,7 +50,7 @@ grafana:
     size: 5Gi
     storageClassName: gp3
   nodeSelector:
-    workload: backend-ai
+    workload: system
   additionalDataSources:
     - name: Loki
       type: loki
