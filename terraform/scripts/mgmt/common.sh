@@ -142,6 +142,127 @@ wait_until() {
   info "확인: ${desc}"
 }
 
+# ── schedule.csv ─────────────────────────────────────────────────────────
+# 형식: action,time,days,enabled,memo  ('#' 줄·빈 줄 무시, 첫 유효 줄이 헤더)
+SCHEDULE_HEADER="action,time,days,enabled,memo"
+
+trim() { local s="${1//$'\r'/}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "${s}"; }
+
+day_index() {
+  case "$1" in
+    sun) echo 0 ;; mon) echo 1 ;; tue) echo 2 ;; wed) echo 3 ;;
+    thu) echo 4 ;; fri) echo 5 ;; sat) echo 6 ;;
+    *) return 1 ;;
+  esac
+}
+
+# days_to_cron <에러표시용 이름> <값>
+#   mon-fri / sat,sun / fri-mon(주 넘김 허용) / daily → cron day_of_week ("1,2,3,4,5" 또는 "*")
+days_to_cron() {
+  local name="$1" value="$2"
+  local -a selected=(0 0 0 0 0 0 0)
+  local token a b i
+  [[ -n "${value}" ]] || die "${name}: days 비어 있음"
+  if [[ "${value}" == "daily" ]]; then echo "*"; return 0; fi
+  IFS=',' read -ra tokens <<< "${value}"
+  for token in "${tokens[@]}"; do
+    if [[ "${token}" =~ ^([a-z]{3})-([a-z]{3})$ ]]; then
+      a="$(day_index "${BASH_REMATCH[1]}")" || die "${name}: 요일 이름 잘못됨 '${BASH_REMATCH[1]}' (mon~sun)"
+      b="$(day_index "${BASH_REMATCH[2]}")" || die "${name}: 요일 이름 잘못됨 '${BASH_REMATCH[2]}' (mon~sun)"
+      i="${a}"
+      while :; do
+        selected[i]=1
+        [[ "${i}" == "${b}" ]] && break
+        i=$(( (i + 1) % 7 ))
+      done
+    elif [[ "${token}" =~ ^[a-z]{3}$ ]]; then
+      a="$(day_index "${token}")" || die "${name}: 요일 이름 잘못됨 '${token}' (mon~sun)"
+      selected[a]=1
+    else
+      die "${name}: days 형식 잘못됨 '${token}' (예: mon-fri, sat,sun, daily)"
+    fi
+  done
+  local out=""
+  for i in 0 1 2 3 4 5 6; do
+    [[ "${selected[i]}" == 1 ]] && out+="${out:+,}${i}"
+  done
+  [[ -n "${out}" ]] || die "${name}: 선택된 요일 없음"
+  echo "${out}"
+}
+
+# parse_schedule_file <csv>
+#   검증하며 파싱. 한 줄이라도 잘못되면 die(호출자는 아무 것도 바꾸지 않은 상태).
+#   출력(행마다, 탭 구분): action  minute  hour  dow_cron  enabled  time_raw  days_raw  memo
+parse_schedule_file() {
+  local file="$1"
+  local raw line header lineno=0 header_seen=0
+  local action time days enabled memo extra hour minute dow
+  require_file "${file}"
+  while IFS= read -r raw || [[ -n "${raw:-}" ]]; do
+    lineno=$((lineno + 1))
+    line="$(trim "${raw}")"
+    [[ -z "${line}" || "${line}" == \#* ]] && continue
+    if (( header_seen == 0 )); then
+      header="$(printf '%s' "${line}" | tr -d ' ')"
+      [[ "${header}" == "${SCHEDULE_HEADER}" ]] \
+        || die "$(basename "${file}") line ${lineno}: 헤더 불일치. 기대 '${SCHEDULE_HEADER}', 실제 '${header}'"
+      header_seen=1
+      continue
+    fi
+    IFS=',' read -r action time days enabled memo extra <<< "${line}"
+    action="$(trim "${action}" | tr '[:upper:]' '[:lower:]')"
+    time="$(trim "${time}")"
+    days="$(trim "${days}" | tr '[:upper:]' '[:lower:]')"
+    enabled="$(trim "${enabled}" | tr '[:upper:]' '[:lower:]')"
+    memo="$(trim "${memo:-}")"
+    extra="$(trim "${extra:-}")"
+    [[ -z "${extra}" ]] || die "line ${lineno}: 필드가 5개를 넘음 — memo에 콤마를 쓴 듯 ('${extra}')"
+    case "${action}" in
+      open|close) ;;
+      *) die "line ${lineno}: action은 open|close만 허용 ('${action}')" ;;
+    esac
+    [[ "${time}" =~ ^([01]?[0-9]|2[0-3]):([0-5][0-9])$ ]] \
+      || die "line ${lineno}: time은 HH:MM (00:00~23:59) 형식 ('${time}')"
+    hour="$((10#${BASH_REMATCH[1]}))"
+    minute="$((10#${BASH_REMATCH[2]}))"
+    dow="$(days_to_cron "line ${lineno} days" "${days}")"
+    case "${enabled}" in
+      true|false) ;;
+      *) die "line ${lineno}: enabled는 true|false만 허용 ('${enabled}')" ;;
+    esac
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "${action}" "${minute}" "${hour}" "${dow}" "${enabled}" "${time}" "${days}" "${memo}"
+  done < "${file}"
+  (( header_seen == 1 )) || die "$(basename "${file}")에 헤더 줄이 없음 (기대: ${SCHEDULE_HEADER})"
+}
+
+# schedule_expected_state <csv> [기준 epoch, 기본 now]
+#   활성 행들 중 "기준 시각 이전에 가장 최근 발생한 이벤트"의 action을 출력한다(open|close).
+#   최근 8일 안에 이벤트가 없으면 unknown. 같은 시각에 open·close가 겹치면 close.
+#   파싱 실패 시 die — 호출자가 옛 CSV를 넘길 때는 `|| echo unknown`으로 감싼다.
+schedule_expected_state() {
+  local file="$1" now="${2:-$(date +%s)}"
+  local rows best_ts=0 best_action="unknown"
+  local action minute hour dow enabled _t _d _m
+  local day_offset day_epoch day_dow day_date ts
+  rows="$(parse_schedule_file "${file}")" || return 1
+  while IFS=$'\t' read -r action minute hour dow enabled _t _d _m; do
+    [[ "${enabled}" == "true" ]] || continue
+    for day_offset in 0 1 2 3 4 5 6 7; do
+      day_epoch=$(( now - day_offset * 86400 ))
+      day_date="$(date -d "@${day_epoch}" +%F)"
+      day_dow="$(date -d "@${day_epoch}" +%w)"
+      if [[ "${dow}" != "*" ]] && ! [[ ",${dow}," == *",${day_dow},"* ]]; then continue; fi
+      ts="$(date -d "${day_date} $(printf '%02d:%02d' "${hour}" "${minute}")" +%s)"
+      (( ts <= now )) || continue
+      if (( ts > best_ts )) || { (( ts == best_ts )) && [[ "${action}" == "close" ]]; }; then
+        best_ts="${ts}"; best_action="${action}"
+      fi
+    done
+  done <<< "${rows}"
+  echo "${best_action}"
+}
+
 # ── EKS Managed Node Group ───────────────────────────────────────────────
 # 출력: status desired min max (탭 구분). Node Group이 없으면 return 2, 그 외 실패 return 1.
 nodegroup_info() {

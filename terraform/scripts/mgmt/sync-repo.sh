@@ -4,6 +4,7 @@
 #   - fast-forward만 허용. 로컬 변경·분기가 있으면 덮어쓰지 않고 로그만 남기고 종료
 #   - git reset --hard / checkout -f 등 강제 동기화는 하지 않는다
 #   - crontab에 MoongCheap 관리 구간이 아직 없으면(첫 설치) update-cron.sh를 한 번 실행
+#   - schedule.csv 변경으로 "지금 있어야 할 상태"가 바뀌면 reconcile.sh로 즉시 맞춤(당일 변경 반영)
 # 수동 실행: /opt/moongcheap/MoongCheap-Cloud/terraform/scripts/mgmt/sync-repo.sh
 # 권한: 일반 사용자(REPO_DIR 소유자). sudo 불필요.
 set -euo pipefail
@@ -76,4 +77,25 @@ fi
 
 if printf '%s\n' "${changed}" | grep -qx 'terraform/scripts/mgmt/schedule.csv'; then
   run_update_cron_if_needed "schedule.csv 변경"
+
+  # 당일 변경 반영: 옛 CSV와 새 CSV로 계산한 "지금 기대 상태"가 다를 때만 맞춘다.
+  # 매번 맞추면 수동 연장 운영(Runbook 7.1)을 되돌려버리므로 조건이 핵심.
+  old_csv="$(mktemp)"
+  if git show "${old}:terraform/scripts/mgmt/schedule.csv" > "${old_csv}" 2>/dev/null; then
+    # 옛 CSV가 옛 형식이라 파싱 실패해도 정상 흐름이라 로그에 ERROR로 남기지 않는다
+    old_state="$(LOG_FILE=/dev/null schedule_expected_state "${old_csv}" 2>/dev/null || echo unknown)"
+  else
+    old_state="unknown"
+  fi
+  new_state="$(schedule_expected_state "${SCHEDULE_FILE}" 2>/dev/null || echo unknown)"
+  rm -f "${old_csv}"
+  info "기대 상태: 옛 CSV=${old_state} → 새 CSV=${new_state}"
+  if [[ "${new_state}" == "unknown" ]]; then
+    warn "새 CSV로 기대 상태를 알 수 없음 — reconcile 건너뜀"
+  elif [[ "${old_state}" == "${new_state}" ]]; then
+    info "지금 기대 상태 변화 없음 — reconcile 건너뜀 (다음 cron 시각부터 새 스케줄 적용)"
+  else
+    warn "스케줄 변경으로 지금 기대 상태가 ${old_state} → ${new_state}로 바뀜 — reconcile 실행"
+    "${SCRIPT_DIR}/reconcile.sh" || die "reconcile.sh 실패 — 위 로그 참고"
+  fi
 fi

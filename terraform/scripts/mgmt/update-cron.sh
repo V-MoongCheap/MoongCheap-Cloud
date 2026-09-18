@@ -18,104 +18,23 @@ info "시작: crontab 갱신 (schedule=${SCHEDULE_FILE})"
 require_cmd crontab
 require_file "${SCHEDULE_FILE}"
 
-EXPECTED_HEADER="action,time,days,enabled,memo"
-
-# ── days → cron day_of_week ──────────────────────────────────────────────
-# 입력: mon-fri / sat,sun / fri-mon(주 넘김 허용) / daily → 출력: 콤마 구분 숫자(0=sun) 오름차순
-day_index() {
-  case "$1" in
-    sun) echo 0 ;; mon) echo 1 ;; tue) echo 2 ;; wed) echo 3 ;;
-    thu) echo 4 ;; fri) echo 5 ;; sat) echo 6 ;;
-    *) return 1 ;;
-  esac
-}
-
-days_to_cron() {
-  local name="$1" value="$2"
-  local -a selected=(0 0 0 0 0 0 0)
-  local token a b i
-  [[ -n "${value}" ]] || die "${name}: days 비어 있음"
-  if [[ "${value}" == "daily" ]]; then
-    echo "*"; return 0
-  fi
-  IFS=',' read -ra tokens <<< "${value}"
-  for token in "${tokens[@]}"; do
-    if [[ "${token}" =~ ^([a-z]{3})-([a-z]{3})$ ]]; then
-      a="$(day_index "${BASH_REMATCH[1]}")" || die "${name}: 요일 이름 잘못됨 '${BASH_REMATCH[1]}' (mon~sun)"
-      b="$(day_index "${BASH_REMATCH[2]}")" || die "${name}: 요일 이름 잘못됨 '${BASH_REMATCH[2]}' (mon~sun)"
-      i="${a}"
-      while :; do
-        selected[i]=1
-        [[ "${i}" == "${b}" ]] && break
-        i=$(( (i + 1) % 7 ))
-      done
-    elif [[ "${token}" =~ ^[a-z]{3}$ ]]; then
-      a="$(day_index "${token}")" || die "${name}: 요일 이름 잘못됨 '${token}' (mon~sun)"
-      selected[a]=1
-    else
-      die "${name}: days 형식 잘못됨 '${token}' (예: mon-fri, sat,sun, daily)"
-    fi
-  done
-  local out=""
-  for i in 0 1 2 3 4 5 6; do
-    [[ "${selected[i]}" == 1 ]] && out+="${out:+,}${i}"
-  done
-  [[ -n "${out}" ]] || die "${name}: 선택된 요일 없음"
-  echo "${out}"
-}
-
-# ── CSV 파싱 ─────────────────────────────────────────────────────────────
-trim() { local s="${1//$'\r'/}"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "${s}"; }
+# ── CSV 파싱 (common.sh parse_schedule_file — 한 줄이라도 잘못되면 여기서 종료, crontab 무변경) ──
+rows="$(parse_schedule_file "${SCHEDULE_FILE}")"
 
 declare -a CRON_LINES=()
-lineno=0
-header_seen=0
 enabled_count=0
 disabled_count=0
-while IFS= read -r raw || [[ -n "${raw:-}" ]]; do
-  lineno=$((lineno + 1))
-  line="$(trim "${raw}")"
-  [[ -z "${line}" || "${line}" == \#* ]] && continue
-
-  if (( header_seen == 0 )); then
-    header="$(printf '%s' "${line}" | tr -d ' ')"
-    [[ "${header}" == "${EXPECTED_HEADER}" ]] \
-      || die "line ${lineno}: 헤더 불일치. 기대 '${EXPECTED_HEADER}', 실제 '${header}'"
-    header_seen=1
+while IFS=$'\t' read -r action minute hour dow enabled time days memo; do
+  if [[ "${enabled}" != "true" ]]; then
+    disabled_count=$((disabled_count + 1))
+    info "건너뜀(enabled=false): ${action} ${time} ${days}${memo:+ — ${memo}}"
     continue
   fi
-
-  IFS=',' read -r action time days enabled memo extra <<< "${line}"
-  action="$(trim "${action}" | tr '[:upper:]' '[:lower:]')"
-  time="$(trim "${time}")"
-  days="$(trim "${days}" | tr '[:upper:]' '[:lower:]')"
-  enabled="$(trim "${enabled}" | tr '[:upper:]' '[:lower:]')"
-  memo="$(trim "${memo:-}")"
-  extra="$(trim "${extra:-}")"
-
-  [[ -z "${extra}" ]] || die "line ${lineno}: 필드가 5개를 넘음 — memo에 콤마를 쓴 듯 ('${extra}')"
-  case "${action}" in
-    open|close) ;;
-    *) die "line ${lineno}: action은 open|close만 허용 ('${action}')" ;;
-  esac
-  [[ "${time}" =~ ^([01]?[0-9]|2[0-3]):([0-5][0-9])$ ]] \
-    || die "line ${lineno}: time은 HH:MM (00:00~23:59) 형식 ('${time}')"
-  hour="$((10#${BASH_REMATCH[1]}))"
-  minute="$((10#${BASH_REMATCH[2]}))"
-  dow="$(days_to_cron "line ${lineno} days" "${days}")"
-  case "${enabled}" in
-    true)  ;;
-    false) disabled_count=$((disabled_count + 1)); info "line ${lineno}: ${action} ${time} ${days} — enabled=false, 건너뜀 (${memo})"; continue ;;
-    *) die "line ${lineno}: enabled는 true|false만 허용 ('${enabled}')" ;;
-  esac
-
   target="${SCRIPT_DIR}/${action}-infra.sh"
-  [[ -x "${target}" ]] || die "line ${lineno}: 실행 파일 없음 또는 실행 권한 없음: ${target} (chmod +x 확인)"
+  [[ -x "${target}" ]] || die "실행 파일 없음 또는 실행 권한 없음: ${target} (chmod +x 확인)"
   CRON_LINES+=("# ${action} ${time} ${days}${memo:+ — ${memo}}"$'\n'"${minute} ${hour} * * ${dow} ${target}")
   enabled_count=$((enabled_count + 1))
-done < "${SCHEDULE_FILE}"
-
-(( header_seen == 1 )) || die "CSV에 헤더 줄이 없음 (기대: ${EXPECTED_HEADER})"
+done <<< "${rows}"
 
 info "CSV 검증 통과: 활성 ${enabled_count}건, 비활성 ${disabled_count}건"
 (( enabled_count > 0 )) || warn "활성 스케줄이 0건 — Open/Close cron이 비게 됨(의도한 것인지 확인)"

@@ -397,6 +397,7 @@ terraform/
         ├── close-infra.sh
         ├── sync-repo.sh
         ├── update-cron.sh
+        ├── reconcile.sh
         ├── schedule.csv
         └── mgmt-iam-policy.json
 ```

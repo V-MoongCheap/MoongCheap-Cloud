@@ -64,6 +64,11 @@ resource "aws_eks_node_group" "system" {
     max_size     = var.system_max_size
   }
 
+  # Runbook 7.1: FE와 같이 MGMT 서버가 desired를 0↔2로 바꾼다(Close 시 컨트롤러도 함께 정지).
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+
   tags = {
     Name = "${var.project}-${var.env}-system-ng"
   }

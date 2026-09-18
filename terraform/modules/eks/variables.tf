@@ -152,8 +152,8 @@ variable "system_desired_size" {
 
 variable "system_min_size" {
   type        = number
-  description = "System Worker Node Group min size"
-  default     = 2
+  description = "System Worker Node Group min size (Close 때 desired=0이 가능하려면 0이어야 함 — Runbook 7.1)"
+  default     = 0
 }
 
 variable "system_max_size" {

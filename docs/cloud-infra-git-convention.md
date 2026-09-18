@@ -427,8 +427,9 @@ helm template
 
 `terraform/scripts/mgmt/**`는 `develop` 머지 후 5분 이내에 KT Cloud MGMT
 서버가 가져가 cron으로 실행한다(11절). `schedule.csv` 한 줄 변경도 실제
-Open/Close 시각이 바뀌므로, 이 경로가 포함된 PR은 반드시 `terraform/**`
-담당자 Review를 거친 뒤 머지한다.
+Open/Close 시각이 바뀌고, "지금 있어야 할 상태"가 바뀌는 변경은 **머지 직후
+노드를 내리거나 올린다**(reconcile). 이 경로가 포함된 PR은 반드시 `terraform/**`
+담당자 Review를 거치고, close를 유발하는 변경은 머지 시각을 팀에 알린 뒤 머지한다.
 
 `docs/**` 등 공통 영역은 변경 내용과 관련된 담당자가 Review한다.
 
@@ -696,6 +697,7 @@ terraform/
         ├── close-infra.sh
         ├── sync-repo.sh
         ├── update-cron.sh
+        ├── reconcile.sh
         ├── schedule.csv
         └── mgmt-iam-policy.json
 ```

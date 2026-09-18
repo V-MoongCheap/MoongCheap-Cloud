@@ -248,6 +248,7 @@ KT Cloud에는 AWS 인프라의 Open/Close 자동화를 수행하는 **MGMT 서�
 KT Cloud MGMT 서버 (cron)
    ├─ sync-repo.sh    ── git pull --ff-only (develop) ──▶ GitHub MoongCheap-Cloud
    │     └─ schedule.csv 변경 시 update-cron.sh → Open/Close cron 갱신
+   │        (+ 지금 기대 상태가 바뀌면 reconcile.sh → 즉시 open/close)
    ├─ open-infra.sh   ┐
    └─ close-infra.sh  ┘── AWS CLI (IAM User Access Key, 최소 권한) ──▶ AWS API
                                                                       ├─ EKS Managed Node Group(system-ng·fe-ng) desired 0↔2

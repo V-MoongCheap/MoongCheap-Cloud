@@ -244,9 +244,9 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 
 **Close 상태에서도 계속 나가는 비용**: EKS Control Plane + RDS + ElastiCache + OpenSearch ≈ **$345/월**(6.1). Close로 줄어드는 것은 Node(FE·BE·AI) + NAT 실행 시간분이다.
 
-**스케줄 변경 방법**: `terraform/scripts/mgmt/schedule.csv`(형식 `action,time,days,enabled,memo` — 예 `open,09:00,mon-fri,true,평일 운영 시작`)를 고쳐 `develop`에 머지하면 MGMT 서버가 5분 이내에 crontab을 갱신한다. 임시 연장(익일 01:00 등)은 MGMT 서버에서 `open-infra.sh`/`close-infra.sh`를 수동 실행한다. MGMT 서버 초기 설정과 IAM 최소 권한은 `V-MoongCheap/docs/2026-09-18-mgmt-server-setup-guide.md`, 정책 JSON은 `terraform/scripts/mgmt/mgmt-iam-policy.json`.
+**스케줄 변경 방법**: `terraform/scripts/mgmt/schedule.csv`(형식 `action,time,days,enabled,memo` — 예 `open,09:00,mon-fri,true,평일 운영 시작`)를 고쳐 `develop`에 머지하면 MGMT 서버가 5분 이내에 crontab을 갱신한다. **당일 변경도 반영된다** — 변경 전후 CSV로 계산한 "지금 있어야 할 상태"(직전 이벤트가 open인지 close인지)가 달라지면 `reconcile.sh`가 즉시 그 상태로 맞춘다(예: 토요일 열려 있는 중에 `close,15:00,sat`를 15:03에 머지 → 15:05 안에 닫힘). 기대 상태가 안 바뀌는 변경(평일 시각 조정 등)은 다음 cron 시각부터 적용되고 현재 상태는 건드리지 않으므로, 수동 연장 운영 중에도 안전하다. 임시 연장(익일 01:00 등)은 MGMT 서버에서 `open-infra.sh`/`close-infra.sh`를 수동 실행한다. MGMT 서버가 꺼져 있어 cron을 놓쳤으면 `reconcile.sh`를 수동 실행해 복구한다. MGMT 서버 초기 설정과 IAM 최소 권한은 `V-MoongCheap/docs/2026-09-18-mgmt-server-setup-guide.md`, 정책 JSON은 `terraform/scripts/mgmt/mgmt-iam-policy.json`.
 
-**주의**: Close는 drain 없이 노드를 내리므로 실행 중인 Pod는 즉시 종료된다. Jenkins 빌드·배치 작업은 Close 시각 전에 끝나야 한다. BE·AI EBS PVC는 AZ 고정이라 Open 후 다른 AZ에 노드가 뜨면 해당 Pod가 Pending에 걸릴 수 있다(설계서 4.4·7.2 — AZ 정책 [확정 필요]).
+**주의**: `schedule.csv` PR은 머지 즉시 노드를 내릴 수 있다 — close를 앞당기는 변경은 머지 시각을 팀에 알린다. Close는 drain 없이 노드를 내리므로 실행 중인 Pod는 즉시 종료된다. Jenkins 빌드·배치 작업은 Close 시각 전에 끝나야 한다. BE·AI EBS PVC는 AZ 고정이라 Open 후 다른 AZ에 노드가 뜨면 해당 Pod가 Pending에 걸릴 수 있다(설계서 4.4·7.2 — AZ 정책 [확정 필요]).
 
 ------------------------------------------------------------------------
 
