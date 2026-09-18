@@ -61,6 +61,14 @@ grafana:
       isDefault: false
   service:
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
+  ingress:
+    enabled: false   # TODO: Cloudflare extra_subdomains(grafana) 활성화 + ingress-nginx 배포 확인 후 true
+    ingressClassName: "nginx"   # TODO: 실제 IngressClass 이름 확인 (repo 컨벤션상 nginx로 예상, 미확정)
+    annotations: {}
+    path: /
+    hosts:
+      - "grafana.moongcheap.shop"
+    tls: []
   env:
     GF_PLUGINS_PREINSTALL_DISABLED: "true"
     TZ: "Asia/Seoul"
