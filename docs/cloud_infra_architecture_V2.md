@@ -238,36 +238,28 @@ Internet
 
 ---
 
-### 3.5 KT Cloud 관리 환경 연계
+### 3.5 KT Cloud 관리 환경 연계 `[개정 2026-09-18]`
 
 KT Cloud는 AWS 서비스 Runtime과 직접 연결되는 데이터 계층으로 사용하지 않는다.
 
-KT Cloud에는 AWS 인프라의 Open/Close 작업을 수행하기 위한 **Terraform 관리 환경**을 구성한다.
+KT Cloud에는 AWS 인프라의 Open/Close 자동화를 수행하는 **MGMT 서버**를 둔다. MGMT 서버는 Terraform을 실행하지 않는다 — Terraform `init/plan/apply/destroy`는 인프라 생성·변경 시 인프라 담당자가 로컬에서 수동으로 수행한다(8.3).
 
 ```
-KT Cloud
-Terraform Management Resource
-        ↓ HTTPS / AWS API
-AWS IAM Authentication
-        ↓
-Terraform
-        ↓
-AWS Infrastructure
-
+KT Cloud MGMT 서버 (cron)
+   ├─ sync-repo.sh    ── git pull --ff-only (develop) ──▶ GitHub MoongCheap-Cloud
+   │     └─ schedule.csv 변경 시 update-cron.sh → Open/Close cron 갱신
+   ├─ open-infra.sh   ┐
+   └─ close-infra.sh  ┘── AWS CLI (IAM User Access Key, 최소 권한) ──▶ AWS API
+                                                                      ├─ EKS Managed Node Group desired 0↔2
+                                                                      ├─ Karpenter 노드 EC2 종료 (Close)
+                                                                      └─ NAT Instance stop/start
 ```
 
-Terraform 관리 환경에서 수행하는 주요 작업은 다음과 같다.
+MGMT 서버가 수행하는 작업은 **이미 생성된 Compute 리소스의 Open/Close**와 **Git 기반 스케줄 동기화**로 한정한다. 스크립트는 `terraform/scripts/mgmt/`에서 관리하며 절차·순서는 비용 Runbook 7.1을 따른다.
 
-- `terraform init`
-- `terraform plan`
-- `terraform apply`
-- `terraform destroy`
-- 오전 AWS 인프라 Open
-- 오후 AWS 인프라 Close
+인증 방식: KT Cloud VM은 AWS IAM Role을 받을 수 없으므로 **전용 IAM User의 Access Key**를 MGMT 서버 `~/.aws/credentials`(권한 600)에만 둔다. 이 Key는 코드·Terraform 변수·Git Repository에 저장하지 않으며, 권한은 `terraform/scripts/mgmt/mgmt-iam-policy.json`(EC2 Describe, NAT 태그 한정 Start/Stop, Karpenter 태그 한정 Terminate, 대상 클러스터 한정 Nodegroup 조정)으로 제한한다. Terraform State에는 접근하지 않는다.
 
-KT Cloud 관리 환경에서 AWS API 접근에 필요한 인증정보는 코드 또는 Terraform 변수 파일에 평문으로 저장하지 않는다.
-
-구체적인 IAM 인증 방식 및 Terraform State 접근 방식은 `[확정 필요]`이다.
+`[확정 필요]`: MGMT 전용 IAM User 이름과 생성 위치(Terraform `modules/iam` vs 콘솔 수동). MGMT 서버 자체의 Spec(3.5 이전 표기 유지).
 
 ---
 
@@ -1064,36 +1056,30 @@ Terraform에서 Kubernetes Application Resource를 직접 관리하지 않는다
 
 ---
 
-### 8.3 Terraform 실행 환경
+### 8.3 Terraform 실행 환경 `[개정 2026-09-18]`
 
-Terraform 코드는 Git Repository에서 관리하며, 실제 AWS 인프라의 정기적인 Open / Close 작업은 **KT Cloud에 구성한 Terraform 관리 환경**에서 수행한다.
-
-```
-Git Repository
-      ↓
-KT Cloud Terraform Management Environment
-      ↓
-Terraform init / plan / apply / destroy
-      ↓
-AWS API
-      ↓
-AWS Infrastructure
+Terraform 코드는 Git Repository에서 관리하며, **Terraform 실행(init / plan / apply / destroy)은 인프라 담당자(최상우 / 양재혁)의 로컬 환경에서 수동으로 수행**한다. 정기적인 Open / Close는 Terraform이 아니라 KT Cloud MGMT 서버의 AWS CLI 스크립트가 담당한다(3.5, Runbook 7.1).
 
 ```
+[인프라 생성·변경]                          [정기 Open / Close]
+인프라 담당자 로컬                            KT Cloud MGMT 서버 (cron)
+      ↓ terraform init/plan/apply/destroy          ↓ aws eks / aws ec2 (스크립트)
+AWS API                                     AWS API
+      ↓                                            ↓
+AWS Infrastructure  ◀── 같은 리소스 ──▶  Compute만 desired 0↔N / stop·start
+```
 
-KT Cloud Terraform 관리 환경의 주요 역할은 다음과 같다.
+두 경로가 충돌하지 않도록 Terraform 쪽에서 다음을 보장한다.
 
-- Terraform Code 실행
-- 오전 AWS Infrastructure Open
-- 오후 AWS Infrastructure Close
-- Terraform Plan 확인
-- AWS Infrastructure 생성 / 변경 / 제거
+- FE Managed Node Group `desired_size`는 `ignore_changes` — Close 중 `apply`가 노드를 다시 띄우지 않는다.
+- FE Managed Node Group `min_size = 0` — `desired 0` API 호출이 거부되지 않는다.
+- NAT Instance는 `aws_instance`의 실행 상태(running/stopped)를 Terraform이 diff로 잡지 않으므로 별도 조치 없음. ENI·EIP가 인스턴스와 분리돼 있어 stop/start 후에도 IP·라우트가 유지된다.
 
-Terraform 실행 환경 자체의 세부 Resource Spec은 `[확정 필요]`이다.
+로컬 Terraform 실행 환경은 각자의 IAM User(Access Entry에 등록된 `v-infra-*`)를 사용하며, Remote State(8.4)와 S3 Lockfile로 동시 실행을 제어한다.
 
-AWS 인증정보를 Terraform Code, `terraform.tfvars` 또는 Git Repository에 평문으로 저장하지 않는다.
+AWS 인증정보를 Terraform Code, `terraform.tfvars` 또는 Git Repository에 평문으로 저장하지 않는다. `terraform plan -out` 산출물과 State 사본도 같은 취급이다(`.gitignore`로 차단).
 
-AWS 인증 방식은 `[확정 필요]`이며 IAM 최소 권한 원칙을 적용한다.
+MGMT 서버의 인증 방식은 3.5에 정의한다.
 
 ---
 
@@ -1119,28 +1105,30 @@ State Locking은 별도 DynamoDB Table 없이 S3 Backend의 `use_lockfile = true
 
 ---
 
-### 8.5 Open / Close 및 Resource 보호 정책
+### 8.5 Open / Close 및 Resource 보호 정책 `[개정 2026-09-18]`
 
-비용 절감을 위해 비작업 시간에는 재생성 가능한 AWS Resource를 Terraform 기반으로 종료 또는 제거한다.
+비용 절감을 위해 비작업 시간에는 **Compute 리소스만 AWS API로 내린다**(Terraform destroy 아님). 리소스 자체는 남고 실행 시간분 비용만 줄어든다.
 
 이때 **Compute / Network Resource와 Stateful Resource를 명확하게 분리**한다.
 
-| Resource 분류 일반 Close 시 정책  |                          |                            |
+| Resource | 분류 | 일반 Close 시 정책 |
 | -------------------------- | ------------------------ | -------------------------- |
-| EKS Worker / Node Group    | 재생성 가능                   | 종료·축소 대상                   |
-| EKS Cluster                | 재생성 가능                   | 비용 Runbook 정책에 따라 처리       |
-| NAT Instance               | 재생성 가능                   | 종료·재생성 가능                  |
-| VPC / Subnet / Route       | 재생성 가능                   | 비용 Runbook 정책에 따라 처리       |
-| RDS PostgreSQL             | Stateful                 | 데이터 보호                     |
-| S3 Object Storage          | Stateful                 | 유지                         |
-| Terraform State S3         | IaC 핵심 데이터               | 유지                         |
-| EBS / PVC 중요 데이터           | Stateful                 | 보호                         |
-| ECR                        | Artifact                 | 비용 Runbook 정책에 따라 유지 여부 결정 |
-| IAM / Secrets Manager      | Security / Configuration | 비용 Runbook 정책에 따라 처리       |
-| KT Cloud Backup Storage    | Secondary Backup         | 유지                         |
-| KT Cloud Terraform 관리 환경   | Management               | AWS Open / Close 수행을 위해 유지 |
+| FE EKS Managed Node Group  | 재생성 가능                   | `desired_size` 0 (Node Group 자체는 유지) |
+| BE·AI Karpenter 노드        | 재생성 가능                   | EC2 종료 (NodePool·EC2NodeClass는 유지, Open 후 수요에 따라 재생성) |
+| EKS Cluster (Control Plane) | 상시                      | **유지** (삭제·재생성 안 함) |
+| NAT Instance               | 재생성 가능                   | **stop** (삭제 아님. ENI·EIP 유지) |
+| VPC / Subnet / Route       | 재생성 가능                   | 유지 (비용 없음) |
+| RDS PostgreSQL             | Stateful                 | 유지 · 데이터 보호 |
+| ElastiCache / OpenSearch   | Stateful                 | 유지 |
+| S3 Object Storage          | Stateful                 | 유지 |
+| Terraform State S3         | IaC 핵심 데이터               | 유지 |
+| EBS / PVC 중요 데이터           | Stateful                 | 유지 (노드가 내려가도 볼륨은 남음) |
+| ECR                        | Artifact                 | 유지 |
+| IAM / Secrets Manager      | Security / Configuration | 유지 |
+| KT Cloud Backup Storage    | Secondary Backup         | 유지 |
+| KT Cloud MGMT 서버          | Management               | AWS Open / Close 수행을 위해 유지 |
 
-> `terraform destroy`를 전체 Resource에 일괄 수행하지 않고, 비용 관리 Runbook에서 정의한 Open / Close 대상에 따라 Stateful Resource와 관리 Resource를 보호한다.
+> Open / Close는 `terraform/scripts/mgmt/{open,close}-infra.sh`가 수행하며 위 표의 Compute 3종 외에는 어떤 리소스도 건드리지 않는다. 프로젝트 종료 시 전체 정리는 별도 절차(`pre-destroy-karpenter.sh` → `terraform destroy`, Runbook 10장)로 인프라 담당자가 수동 수행한다.
 
 ---
 

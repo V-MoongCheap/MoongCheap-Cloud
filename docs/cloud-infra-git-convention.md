@@ -425,6 +425,11 @@ helm template
 하나의 PR이 여러 담당 영역을 동시에 변경하는 경우에는 **각 영역 담당자의
 확인을 받는 것을 원칙**으로 한다.
 
+`terraform/scripts/mgmt/**`는 `develop` 머지 후 5분 이내에 KT Cloud MGMT
+서버가 가져가 cron으로 실행한다(11절). `schedule.csv` 한 줄 변경도 실제
+Open/Close 시각이 바뀌므로, 이 경로가 포함된 PR은 반드시 `terraform/**`
+담당자 Review를 거친 뒤 머지한다.
+
 `docs/**` 등 공통 영역은 변경 내용과 관련된 담당자가 Review한다.
 
 ### 7.2 develop → main
@@ -684,7 +689,15 @@ terraform/
 │       └── ...
 │
 └── scripts/                      # Terraform 전후 보조 스크립트 (네이밍 규약서 4절)
-    └── pre-destroy-karpenter.sh
+    ├── pre-destroy-karpenter.sh
+    └── mgmt/                     # KT Cloud MGMT 서버 Open/Close 자동화 — develop 머지 즉시 운영 반영
+        ├── common.sh
+        ├── open-infra.sh
+        ├── close-infra.sh
+        ├── sync-repo.sh
+        ├── update-cron.sh
+        ├── schedule.csv
+        └── mgmt-iam-policy.json
 ```
 
 Module 기본 구조:
