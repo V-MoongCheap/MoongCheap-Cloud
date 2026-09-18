@@ -70,18 +70,41 @@ variable "cluster_admin_usernames" {
   default     = ["v-infra-hs", "v-infra-jh", "v-infra-jw", "v-infra-sw", "v-infra-ys"]
 }
 
-# 아키텍처 설계서_V2 4.2: FE Desired=2. Min/Max는 문서상 [확정 필요]로 남아있어
-# 우선 최소 비용으로 안전하게 기본값을 잡고, 팀 확정 후 조정한다.
+# true(기본값)면 클러스터를 실제로 만든 사람에게 AWS가 자동으로 admin 권한을 준다.
+# 이 경우 그 사람 몫을 access.tf가 cluster_admin_usernames에서 빼야 충돌이 안 난다 —
+# 근데 그 "제외 대상"은 매번 apply하는 사람이 아니라 "최초 생성자" 단 한 명으로
+# 고정해야 한다(D-17 정정, 실제로 다른 팀원이 apply할 때 본인 access entry가 삭제되는
+# 걸 라이브로 재현함). 신규 클러스터(prod 등)는 false로 두면 이 특수 케이스 자체가
+# 없어져서 팀원 전원을 예외 없이 동일하게 관리할 수 있다.
+variable "bootstrap_cluster_creator_admin_permissions" {
+  type        = bool
+  description = "클러스터 생성자에게 AWS가 자동으로 admin 권한을 줄지 여부. 새로 만드는 클러스터는 false 권장(D-17)"
+  default     = true
+}
+
+# bootstrap_cluster_creator_admin_permissions = true인 환경에서만 의미가 있다.
+# "지금 apply하는 사람"이 아니라 "이 클러스터를 최초로 만든 사람"으로 고정해야
+# 한다 — develop은 v-infra-jh가 최초 생성자임을 AWS에 직접 확인함(access entry에
+# Terraform 태그가 없음 = AWS 자동 생성).
+variable "cluster_creator_username" {
+  type        = string
+  description = "이 클러스터를 최초로 apply해서 AWS 자동 admin을 받은 IAM 사용자 이름"
+  default     = "v-infra-jh"
+}
+
+# 아키텍처 설계서_V2 4.2: FE Desired=2(Open 시). Runbook 7.1의 Close는 MGMT 서버가
+# EKS API로 desired를 0으로 내리는 방식이라 min_size가 0이어야 하고, 그 뒤 apply가
+# desired를 되돌리지 않도록 node_groups.tf에서 desired_size를 ignore_changes 처리한다.
 variable "fe_desired_size" {
   type        = number
-  description = "FE Worker Node Group desired size"
+  description = "FE Worker Node Group desired size (최초 생성 시 값. 이후 Open/Close 스크립트가 바꾸며 Terraform은 무시)"
   default     = 2
 }
 
 variable "fe_min_size" {
   type        = number
-  description = "FE Worker Node Group min size"
-  default     = 1
+  description = "FE Worker Node Group min size (Close 때 desired=0이 가능하려면 0이어야 함)"
+  default     = 0
 }
 
 variable "eso_namespace" {
@@ -151,8 +174,8 @@ variable "system_desired_size" {
 
 variable "system_min_size" {
   type        = number
-  description = "System Worker Node Group min size"
-  default     = 2
+  description = "System Worker Node Group min size (Close 때 desired=0이 가능하려면 0이어야 함 — Runbook 7.1)"
+  default     = 0
 }
 
 variable "system_max_size" {

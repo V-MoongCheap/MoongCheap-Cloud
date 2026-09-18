@@ -29,7 +29,7 @@ resource "aws_eks_cluster" "this" {
   # kubectl이 "must be logged in to the server"로 거부당한다
   access_config {
     authentication_mode                         = "API_AND_CONFIG_MAP"
-    bootstrap_cluster_creator_admin_permissions = true
+    bootstrap_cluster_creator_admin_permissions = var.bootstrap_cluster_creator_admin_permissions
   }
 
   tags = {
