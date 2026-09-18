@@ -28,6 +28,12 @@ resource "aws_eks_node_group" "fe" {
     max_size     = var.fe_max_size
   }
 
+  # Runbook 7.1: MGMT 서버(terraform/scripts/mgmt/{open,close}-infra.sh)가 EKS API로
+  # desired를 0↔2로 바꾼다. 이걸 무시하지 않으면 Close 중 누가 apply해도 노드가 다시 뜬다.
+  lifecycle {
+    ignore_changes = [scaling_config[0].desired_size]
+  }
+
   tags = {
     Name = "${var.project}-${var.env}-fe-ng"
   }

@@ -1,0 +1,52 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadOnlyDiscovery",
+      "Effect": "Allow",
+      "Action": [
+        "sts:GetCallerIdentity",
+        "ec2:DescribeInstances",
+        "ec2:DescribeInstanceStatus",
+        "eks:DescribeCluster",
+        "eks:DescribeNodegroup",
+        "eks:ListNodegroups"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ScaleManagedNodeGroups",
+      "Effect": "Allow",
+      "Action": "eks:UpdateNodegroupConfig",
+      "Resource": "arn:aws:eks:ap-northeast-2:840851421204:nodegroup/moongcheap-develop-eks/*/*"
+    },
+    {
+      "Sid": "StartStopNatInstanceOnly",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:StartInstances",
+        "ec2:StopInstances"
+      ],
+      "Resource": "arn:aws:ec2:ap-northeast-2:840851421204:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/Name": "moongcheap-develop-nat"
+        }
+      }
+    },
+    {
+      "Sid": "TerminateKarpenterNodesOnly",
+      "Effect": "Allow",
+      "Action": "ec2:TerminateInstances",
+      "Resource": "arn:aws:ec2:ap-northeast-2:840851421204:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/kubernetes.io/cluster/moongcheap-develop-eks": "owned"
+        },
+        "StringLike": {
+          "ec2:ResourceTag/karpenter.sh/nodepool": "*"
+        }
+      }
+    }
+  ]
+}

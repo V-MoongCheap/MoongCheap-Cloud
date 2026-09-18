@@ -1,0 +1,5 @@
+action,minute,hour,day_of_month,month,day_of_week,enabled
+open,0,9,*,*,1-5,true
+close,0,22,*,*,1-5,true
+open,0,12,*,*,0,false
+close,0,1,*,*,1,false
