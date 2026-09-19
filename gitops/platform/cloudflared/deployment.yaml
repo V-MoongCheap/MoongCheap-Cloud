@@ -1,0 +1,59 @@
+# cloudflared-token Secret은 git에 커밋하지 않는다.
+# 클러스터에 미리 아래처럼 생성해둔다:
+#   kubectl create secret generic cloudflared-token -n infra \
+#     --from-literal=token="$(terraform -chdir=terraform/envs/develop output -raw cloudflare_tunnel_token)"
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cloudflared
+  namespace: infra
+  labels:
+    app: cloudflared
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cloudflared
+  template:
+    metadata:
+      labels:
+        app: cloudflared
+    spec:
+      nodeSelector:
+        workload: system
+      containers:
+        - name: cloudflared
+          image: cloudflare/cloudflared:latest   # TODO: 배포 전 실제 최신 안정 버전으로 고정
+          args:
+            - tunnel
+            - --config
+            - /etc/cloudflared/config.yml
+            - --no-autoupdate
+            - run
+          env:
+            - name: TUNNEL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflared-token
+                  key: token
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 2000
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/cloudflared
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: cloudflared-config
