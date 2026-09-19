@@ -1,0 +1,28 @@
+# 데이터플레인(Envoy 자체) Deployment/Service 설정.
+# service 이름을 moongcheap-envoy로 고정해서 cloudflared config.yml,
+# HTTPRoute backendRef 등 다른 곳에서 안정적으로 참조할 수 있게 한다.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: moongcheap-envoy
+  namespace: infra
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: ClusterIP
+        name: moongcheap-envoy
+      envoyDeployment:
+        replicas: 1
+        pod:
+          nodeSelector:
+            workload: system
+        container:
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
+ 

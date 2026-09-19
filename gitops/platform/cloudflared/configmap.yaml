@@ -1,0 +1,21 @@
+# Terraform의 cloudflare_zero_trust_tunnel_cloudflared 리소스가 config_src = "local"로
+# 만들어져 있어서, 호스트→서비스 라우팅 표는 Cloudflare 대시보드가 아니라 이 ConfigMap이 갖고 있어야 한다.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflared-config
+  namespace: infra
+data:
+  config.yml: |
+    ingress:
+      - hostname: moongcheap.shop
+        service: http://moongcheap-envoy.infra.svc.cluster.local:80
+      - hostname: api.moongcheap.shop
+        service: http://moongcheap-envoy.infra.svc.cluster.local:80
+      - hostname: jenkins.moongcheap.shop
+        service: http://moongcheap-envoy.infra.svc.cluster.local:80
+      - hostname: grafana.moongcheap.shop
+        service: http://moongcheap-envoy.infra.svc.cluster.local:80
+      - hostname: argocd.moongcheap.shop
+        service: http://moongcheap-envoy.infra.svc.cluster.local:80
+      - service: http_status:404

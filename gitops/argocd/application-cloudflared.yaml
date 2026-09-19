@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudflared
+  namespace: argocd
+spec:
+  project: moongcheap-platform
+  source:
+    repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+    targetRevision: develop
+    path: gitops/platform/cloudflared
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infra
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
