@@ -1,0 +1,30 @@
+# ArgoCD 자체가 이 Gateway 뒤로 들어오는 라우트.
+# backendRefs.name(argocd-server)은 실제 ArgoCD Helm 릴리스 이름에 따라 달라질 수 있으니
+# 반드시 `kubectl get svc -n argocd`로 실제 Service 이름을 확인하고 다르면 맞춰서 수정할 것.
+# gitops/platform/argocd/values.yaml에 server.insecure: true를 같이 추가해야
+# (TLS는 Edge/Cloudflare에서 종료하는 구조이므로) 이 HTTP 리스너로 정상 동작한다.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  hostnames:
+    - "argocd.moongcheap.shop"
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: moongcheap-gateway
+      namespace: infra
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: argocd-server   # 실제 이름 확인 필요 (릴리스 이름에 따라 <release>-argocd-server 형태일 수도 있음)
+          port: 80
+          weight: 1
+ 
