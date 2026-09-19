@@ -5,6 +5,7 @@ controller:
 server:
   nodeSelector:
     workload: system
+  insecure: true
 
 repoServer:
   nodeSelector:
