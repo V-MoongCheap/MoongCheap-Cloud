@@ -44,7 +44,10 @@ alertmanager:
 
 grafana:
   enabled: true
-  adminPassword: CHANGE_ME # 실제로는 sealed-secret / external-secret 등으로 주입 예정
+  admin:
+    existingSecret: grafana-admin-secret
+    userKey: admin-user
+    passwordKey: admin-password
   persistence:
     enabled: true
     size: 5Gi
@@ -63,12 +66,6 @@ grafana:
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
   ingress:
     enabled: false   # TODO: Cloudflare extra_subdomains(grafana) 활성화 + ingress-nginx 배포 확인 후 true
-    ingressClassName: "nginx"   # TODO: 실제 IngressClass 이름 확인 (repo 컨벤션상 nginx로 예상, 미확정)
-    annotations: {}
-    path: /
-    hosts:
-      - "grafana.moongcheap.shop"
-    tls: []
   env:
     GF_PLUGINS_PREINSTALL_DISABLED: "true"
     TZ: "Asia/Seoul"
@@ -108,7 +105,7 @@ grafana:
   grafana.ini:
     server:
       root_url: https://grafana.moongcheap.shop/
-  envFromSecret: grafana-env-secret # k8s 시크릿 등록 필요
+  envFromSecret: grafana-env-secret
 
   alerting:
     templates.yaml:

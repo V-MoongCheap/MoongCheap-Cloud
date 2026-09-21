@@ -1,0 +1,15 @@
+# gitops/platform/envoy-gateway/config.yaml
+#
+# gitops/README.md 6절 "Platform 자동 탐색" 규칙을 따르는 파일입니다.
+# applicationset-platform.yaml의 git file generator(gitops/platform/**/config.yaml)가
+# 이 파일을 자동으로 탐색해서 ArgoCD Application(name=envoy-gateway)을 생성합니다.
+# (applicationset-platform.yaml 자체는 수정할 필요 없음 — 이미 전체 와일드카드를 씀)
+ 
+name: envoy-gateway
+namespace: infra
+ 
+helm:
+  repoURL: docker.io/envoyproxy   # Karpenter(public.ecr.aws/karpenter)와 같은 방식 — oci:// 접두어 없이
+  chart: gateway-helm
+  version: "v1.9.1"               # Gateway API CRD가 chart에 동봉됨. K8s 1.36에서 호환 확인됨
+ 

@@ -1,0 +1,13 @@
+global:
+  nodeSelector:
+    workload: system
+
+installCRDs: true
+
+serviceAccount:
+  create: true
+  name: "external-secrets"
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::840851421204:role/moongcheap-develop-eso-role"
+
+replicaCount: 1

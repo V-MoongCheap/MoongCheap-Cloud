@@ -14,7 +14,9 @@ spec:
     - https://grafana.github.io/helm-charts
     - https://charts.jenkins.io
     - public.ecr.aws/karpenter
-
+    - docker.io/envoyproxy
+    - https://charts.external-secrets.io
+    
   destinations:
     - server: https://kubernetes.default.svc
       namespace: monitoring
@@ -22,7 +24,12 @@ spec:
       namespace: kube-system
     - server: https://kubernetes.default.svc
       namespace: jenkins
-
+    - server: https://kubernetes.default.svc
+      namespace: infra
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: kube-node-lease
         
   clusterResourceWhitelist:
     - group: "*"

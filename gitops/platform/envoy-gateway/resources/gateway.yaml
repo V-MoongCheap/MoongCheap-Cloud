@@ -1,0 +1,15 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: moongcheap-gateway
+  namespace: infra
+spec:
+  gatewayClassName: moongcheap
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All   # infra 밖(monitoring/jenkins/argocd/moongcheap-develop 등)의 HTTPRoute도 이 Gateway에 붙을 수 있게 허용
+ 
