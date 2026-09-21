@@ -736,7 +736,7 @@ gitops/
 │   ├── jenkins/
 │   ├── monitoring/{kube-prometheus-stack,loki}/
 │   ├── observability/{alloy-logs,alloy-metrics}/
-│   └── <추가 시> karpenter/ ingress-nginx/ cloudflared/ external-secrets/ storage/
+│   └── argocd/ karpenter/ envoy-gateway/ cloudflared/ external-secrets/ storage/   # 2026-09-21 기준 전부 존재
 │       └── config.yaml + values.yaml
 │
 ├── argocd/

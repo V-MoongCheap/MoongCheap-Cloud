@@ -13,7 +13,7 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 | 구성 요소 위치                            |                           |
 | ----------------------------------- | ------------------------- |
 | Cloudflare Zone / Tunnel            | Cloudflare                |
-| NGINX Ingress Controller(협의중)       | EKS Cluster               |
+| Envoy Gateway (Gateway API) `[확정 2026-09-19]` | EKS Cluster (`infra` Namespace, system Node Group) |
 | EKS Control Plane                   | AWS 관리형                   |
 | FE Worker Node                      | WEB Private Subnet        |
 | BE·AI Worker Node                   | WAS Private Subnet        |
@@ -34,15 +34,15 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 | ---------------------------------- | ------------------------------------------------------------------------------------ |
 | **FE Worker** (Managed Node Group) | Frontend (Next.js)                                                                   |
 | **BE·AI Worker** (Karpenter)       | Backend (Spring), API Server (FastAPI + Uvicorn), Embedding 등 **CPU 기반 AI Workload** |
-| **BE·AI Worker (System Workload)** | Prometheus, Loki, Grafana, Alloy, ArgoCD, Jenkins                                    |
-| Pool 외 (클러스터 레벨)                   | NGINX Ingress Controller                                                             |
+| **system Node Group** (Managed, `workload: system`) | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus, Loki, Grafana, Alloy `[개정 2026-09-21 — PR #27 system-ng 반영]` |
+| **system Node Group** (클러스터 진입)     | **Envoy Gateway** Controller · Envoy Proxy(Gateway `moongcheap-gateway`) · **cloudflared** `[확정 2026-09-19]` |
 
 ### 트래픽 흐름
 
 | # 흐름 경로  |                          |                                                                                    |
 | -------- | ------------------------ | ---------------------------------------------------------------------------------- |
-| 1        | HTTPS Request            | User → Cloudflare DNS → Cloudflare Tunnel → cloudflared → NGINX Ingress Controller |
-| 2        | Service Traffic          | NGINX Ingress → CPU Pool (FE / BE / API Server)                                    |
+| 1        | HTTPS Request            | User → Cloudflare DNS → Cloudflare Tunnel → cloudflared → **Envoy Gateway**(Gateway `moongcheap-gateway`) |
+| 2        | Service Traffic          | Envoy Gateway → `HTTPRoute`(host 기준) → FE / BE Service (AI는 외부 미노출)              |
 | 3        | AI Request               | Backend · API Server → CPU 기반 AI Workload                                          |
 | 4        | DB Query / Response      | Backend · API Server → **AWS RDS PostgreSQL + pgvector**                           |
 | 5        | Object Upload / Download | Backend → **AWS S3**                                                               |
@@ -84,7 +84,7 @@ EKS는 **단일 Cluster**로 구성하며, Worker별로 배치 Subnet을 분리�
 - FE Worker와 BE·AI Worker는 동일한 EKS Cluster에 포함한다.
 - FE Node Group 생성 시 대응하는 Private Subnet ID를 명시한다. BE·AI(Karpenter)는 WAS Private Subnet에 `karpenter.sh/discovery` 태그를 붙여 EC2NodeClass가 Subnet을 찾게 한다.
 - Pod는 기본적으로 해당 Worker Node가 위치한 Subnet의 네트워크를 사용한다.
-- System Workload 전용 Node Group은 초기에는 구성하지 않는다.
+- System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·Envoy Gateway·cloudflared)는 **system Node Group**(`moongcheap-develop-system-ng`, t3.medium ×2, label `workload: system`, WAS Private Subnet)에 배치한다 `[개정 2026-09-21 — PR #27 반영, 4.2 표 개정은 후속]`.
 - BE·AI Worker의 실제 리소스 사용량과 Jenkins Build 부하를 측정한 뒤 필요 시 전용 Node Group 분리를 검토한다.
 - 가용성을 위해 Subnet의 AZ 분산 구성을 적용한다. **AZ 및 CIDR은** **`[확정 필요]`**.
 
@@ -112,9 +112,11 @@ Cloudflare DNS
   ↓
 Cloudflare Tunnel
   ↓
-cloudflared
+cloudflared  (config.yml: host → moongcheap-envoy.infra.svc.cluster.local:80)
   ↓
-NGINX Ingress Controller
+Envoy Gateway  (Gateway `infra/moongcheap-gateway`, Service type ClusterIP)
+  ↓
+HTTPRoute  (hostnames 기준 — moongcheap.shop / api. / jenkins. / grafana. / argocd.)
   ↓
 Kubernetes Service
   ↓
@@ -138,26 +140,27 @@ Pod
 | AWS ALB               | 사용하지 않음                             |
 | TLS 종단                | Cloudflare Edge                     |
 | Cloudflare ↔ Origin   | Cloudflare Tunnel                   |
-| L7 Routing            | NGINX Ingress Controller(현행)        |
-| Gateway API           | 전환 검토                               |
-| Ingress/Gateway 외부 공개 | Public Load Balancer 방식 사용하지 않음     |
-| 도메인 / Host Routing    | `[확정 필요]`                           |
-| cloudflared 배치        | EKS Cluster 내부 `[Node Group 확정 필요]` |
-| cloudflared Replica   | `[확정 필요]`                           |
+| L7 Routing            | **Envoy Gateway** (Gateway API 구현체) `[확정 2026-09-19]` — Helm `gateway-helm v1.9.1`, Gateway API CRD 동봉, `infra` Namespace |
+| Gateway API           | **채택** `[확정 2026-09-19]` — `GatewayClass moongcheap` → `EnvoyProxy`(ClusterIP) → `Gateway moongcheap-gateway`(listener http :80, 모든 Namespace의 `HTTPRoute` 허용) |
+| Ingress/Gateway 외부 공개 | Public Load Balancer 방식 사용하지 않음 — Envoy Service는 `EnvoyProxy.envoyService.type: ClusterIP`로 고정 |
+| 도메인 / Host Routing    | `moongcheap.shop`(FE, apex) / `api.moongcheap.shop`(BE) / `jenkins.` `grafana.` `argocd.`(Platform, Cloudflare Access 뒤) `[확정 2026-09-17]` — AI는 외부 미노출 |
+| cloudflared 배치        | EKS Cluster 내부 `infra` Namespace, **system Node Group**(`workload: system`) — raw Deployment, Tunnel Token은 Secrets Manager → ESO |
+| cloudflared Replica   | **2**                                   |
 
-#### ingress-nginx EOL 대응
+#### ingress-nginx EOL 대응 → Gateway API + Envoy Gateway `[확정 2026-09-19]`
 
-`ingress-nginx` 프로젝트의 서비스 종료에 따라 현행 NGINX Ingress Controller를 유지하면서 Gateway API 기반 구조로의 전환을 검토한다.
+`ingress-nginx` 프로젝트의 공식 유지보수 종료(2026-03)에 대응해, **NGINX Ingress Controller는 도입하지 않고** Kubernetes 표준 **Gateway API**로 외부 트래픽 구조를 정하며, 구현체는 **Envoy Gateway**를 선정한다. 현행 구성이 배포된 적이 없어 마이그레이션 없이 바로 Gateway API로 시작한다.
 
-| 후보 검토 내용         |                                               |
-| ---------------- | --------------------------------------------- |
-| NGINX Ingress 유지 | 초기 구축이 단순하지만 EOL 이후 보안 패치 중단 위험 존재            |
-| **Gateway API**  | Kubernetes 표준 API. 향후 전환 우선 검토                |
-| Istio            | Service Mesh 기능까지 포함되어 현재 프로젝트 규모에서는 운영 부담이 큼 |
+> 기존 ingress-nginx의 공식 유지보수 종료에 대응하고, Controller별 Annotation에 의존하는 Ingress 구조에서 벗어나 Kubernetes 표준인 Gateway API 기반으로 외부 트래픽 관리 구조를 전환한다. Gateway API 구현체는 Envoy Gateway를 선정한다. Envoy Gateway는 Service Mesh 전체를 도입하지 않고도 Gateway API 기반 HTTP 라우팅과 향후 Traffic/Security Policy 확장이 가능하며, ClusterIP 기반 구성이 가능하여 현재의 Cloudflare Tunnel 기반 외부 진입 구조와 AWS ALB 미사용 원칙을 유지할 수 있다.
 
-Gateway API는 명세이므로 실제 트래픽을 처리하기 위한 Controller 구현체가 별도로 필요하다.
+| 후보 | 판단 | 근거 |
+| ---------------- | -------- | --------------------------------------------- |
+| **Envoy Gateway** | ✅ **선정** | Gateway API 중심, 적절한 운영 복잡도, ClusterIP 구성 가능, 향후 L7 정책 확장 용이 |
+| NGINX Gateway Fabric | △ 대안 | NGINX 친숙성은 높지만 Gateway API Extended 기능이 일부 부분 지원, ingress-nginx와는 별개 구현체 |
+| Istio Gateway | △ 향후 검토 | 기능은 강력하지만 Service Mesh가 필요 없는 현재 규모에서는 운영 복잡도 과도 |
+| NGINX Ingress 유지 | ✗ 기각 | EOL 이후 보안 패치 중단 |
 
-ALB를 사용하지 않는 현재 구조에서는 Envoy Gateway 등의 Cluster 내부 구현체를 검토하며, 구현체 확정 전까지는 NGINX Ingress Controller를 현행 구성으로 사용한다.
+구현 위치와 책임(8.6): Terraform은 Cloudflare Tunnel·DNS 레코드·Tunnel Token(Secrets Manager)까지, `gitops/platform/envoy-gateway/`(Helm + `GatewayClass`/`EnvoyProxy`/`Gateway` + Platform `HTTPRoute`)·`gitops/platform/cloudflared/`·서비스 공통 Chart의 `HTTPRoute`는 gitops가 담당한다. Gateway API CRD는 Envoy Gateway chart에 동봉되므로 ArgoCD가 `ServerSideApply`로 함께 적용하며 별도 CRD 설치 단계는 두지 않는다.
 
 ---
 
@@ -172,7 +175,7 @@ External
    ↓
 Cloudflare Tunnel
    ↓
-Ingress
+Envoy Gateway (HTTPRoute)
    ↓
 FE
    ↓
@@ -184,8 +187,8 @@ RDS / Redis / OpenSearch / S3
 
 | Source Destination Protocol / Port 용도  |                   |                           |                          |
 | -------------------------------------- | ----------------- | ------------------------- | ------------------------ |
-| Ingress                                | FE Service        | `[FE Service Port 확정 필요]` | Frontend 요청              |
-| Ingress / FE                           | BE Service        | `[BE API Port 확정 필요]`     | Backend API              |
+| Envoy Gateway (`HTTPRoute`)            | FE Service        | `[FE Service Port 확정 필요]` | Frontend 요청 (`moongcheap.shop`) |
+| Envoy Gateway / FE                     | BE Service        | `[BE API Port 확정 필요]`     | Backend API (`api.moongcheap.shop`) |
 | BE                                     | API / AI Service  | `[AI API Port 확정 필요]`     | AI API 호출                |
 | BE / API                               | RDS PostgreSQL    | TCP `5432`                | PostgreSQL / pgvector    |
 | BE                                     | ElastiCache Redis | TCP `6379`                 | Cache                    |
@@ -399,7 +402,7 @@ BE·AI Worker:
 - 모든 애플리케이션 Pod에 `resources.requests` / `resources.limits`를 지정한다.
 - Pod Resource 값은 각 파트의 최종 요구 사양을 반영한다.
 - 초기 구조에서는 GPU Taint/Toleration 설정을 사용하지 않는다.
-- System Workload 전용 Node Group이 필요해질 경우 별도의 Label/Taint 정책을 추가한다.
+- System Workload(ArgoCD / Karpenter Controller / Jenkins Controller / Observability / Envoy Gateway / cloudflared)는 `nodeSelector: {workload: system}`으로 system Node Group에 배치한다 `[개정 2026-09-21]`. Taint는 두지 않는다.
 
 ---
 
@@ -407,8 +410,8 @@ BE·AI Worker:
 
 | 구분 컴포넌트 초기 배치  |                          |                            |
 | -------------- | ------------------------ | -------------------------- |
-| 외부 진입          | NGINX Ingress Controller | EKS Cluster                |
-| Tunnel         | cloudflared              | `[Node Group 확정 필요]`       |
+| 외부 진입          | Envoy Gateway (Gateway API CRD 동봉) `[확정 2026-09-19]` | `infra` Namespace, system Node Group |
+| Tunnel         | cloudflared (raw Deployment ×2) | `infra` Namespace, system Node Group |
 | 관찰성            | Prometheus               | BE·AI Worker               |
 | 관찰성            | Loki                     | BE·AI Worker               |
 | 관찰성            | Alloy                    | BE·AI Worker               |
@@ -1012,7 +1015,7 @@ Terraform 및 Helm 구성 자동화를 위해 다음 값을 추가로 확정한�
 | Terraform    | AWS Cloud Infrastructure   | VPC, Subnet, Route Table, IGW, NAT Instance, EKS, Node Group, ECR, IAM, RDS, S3, Secrets Manager 등 프로비저닝 |
 | Terraform    | KT Cloud 보조 Infrastructure | Terraform 관리 환경 및 Backup Storage `[지원 Resource 범위 확인 필요]`                                                |
 | Ansible      | K8s 외부 VM 초기 설정            | NAT Instance 등 EC2 OS Level 설정 `[필요 시]`                                                                  |
-| Helm         | Kubernetes Resource        | Deployment, Service, ConfigMap, HPA, Ingress, Observability/CI-CD Component 등의 패키징 및 설정                  |
+| Helm         | Kubernetes Resource        | Deployment, Service, ConfigMap, HPA, HTTPRoute, Observability/CI-CD Component 등의 패키징 및 설정                  |
 | ArgoCD       | Kubernetes Resource 배포     | Git Repository의 Helm / Manifest 상태를 EKS에 동기화                                                             |
 | Jenkins      | CI Pipeline                | Build, Test, Container Image 생성 및 ECR Push                                                               |
 
@@ -1131,6 +1134,7 @@ State Locking은 별도 DynamoDB Table 없이 S3 Backend의 `use_lockfile = true
 | -------------------------- | ------------------------ | -------------------------- |
 | EKS Managed Node Group (system-ng·fe-ng) | 재생성 가능     | `desired_size` 0 (Node Group 자체는 유지). system-ng가 내려가면 ArgoCD·Karpenter 컨트롤러도 함께 정지 |
 | BE·AI Karpenter 노드        | 재생성 가능                   | EC2 종료 (NodePool·EC2NodeClass는 유지, Open 후 수요에 따라 재생성) |
+| Envoy Gateway · cloudflared (Pod) | 재생성 가능            | 별도 조치 없음 — system-ng와 함께 내려가고 Open 시 자동 복귀. 외부 진입은 system-ng가 Ready된 뒤 회복 |
 | EKS Cluster (Control Plane) | 상시                      | **유지** (삭제·재생성 안 함) |
 | NAT Instance               | 재생성 가능                   | **stop** (삭제 아님. ENI·EIP 유지) |
 | VPC / Subnet / Route       | 재생성 가능                   | 유지 (비용 없음) |

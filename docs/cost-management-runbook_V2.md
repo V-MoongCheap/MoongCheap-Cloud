@@ -242,6 +242,8 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 | 2 | BE·AI Karpenter 노드 | EC2 종료 (`karpenter.sh/nodepool` 태그로 조회) | 없음 — Pod 수요가 생기면 Karpenter가 다시 띄움 | `ec2 terminate-instances`. Karpenter 컨트롤러가 system-ng와 함께 내려간 뒤라 재프로비저닝 안 됨 |
 | 3 | NAT Instance | `stop` | `start` (노드보다 먼저) | `ec2 stop/start-instances`. ENI·EIP가 분리돼 있어 IP·라우트 유지 |
 
+**Open 후 확인 항목**: system-ng Ready → `kubectl -n infra get gateway moongcheap-gateway`가 `Programmed=True`, `kubectl -n infra get deploy cloudflared`가 2/2 Ready(로그 "Registered tunnel connection"). 둘 다 system-ng 위의 Pod라 별도 Open 조치는 없고, 이 상태가 되기 전까지 외부 도메인은 Cloudflare 530/502를 낸다.
+
 **Close 상태에서도 계속 나가는 비용**: EKS Control Plane + RDS + ElastiCache + OpenSearch ≈ **$345/월**(6.1). Close로 줄어드는 것은 Node(FE·BE·AI) + NAT 실행 시간분이다.
 
 **스케줄 변경 방법**: `terraform/scripts/mgmt/schedule.csv`(형식 `action,time,days,enabled,memo` — 예 `open,09:00,mon-fri,true,평일 운영 시작`)를 고쳐 `develop`에 머지하면 MGMT 서버가 5분 이내에 crontab을 갱신한다. **당일 변경도 반영된다** — 변경 전후 CSV로 계산한 "지금 있어야 할 상태"(직전 이벤트가 open인지 close인지)가 달라지면 `reconcile.sh`가 즉시 그 상태로 맞춘다(예: 토요일 열려 있는 중에 `close,15:00,sat`를 15:03에 머지 → 15:05 안에 닫힘). 기대 상태가 안 바뀌는 변경(평일 시각 조정 등)은 다음 cron 시각부터 적용되고 현재 상태는 건드리지 않으므로, 수동 연장 운영 중에도 안전하다. 임시 연장(익일 01:00 등)은 MGMT 서버에서 `open-infra.sh`/`close-infra.sh`를 수동 실행한다. MGMT 서버가 꺼져 있어 cron을 놓쳤으면 `reconcile.sh`를 수동 실행해 복구한다. MGMT 서버 초기 설정과 IAM 최소 권한은 `V-MoongCheap/docs/2026-09-18-mgmt-server-setup-guide.md`, 정책 JSON은 `terraform/scripts/mgmt/mgmt-iam-policy.json`.
@@ -282,7 +284,7 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 
 -   **NAT Instance(t3a.micro) 사용**, 장애 시 Terraform으로 재생성 절차
     문서화
--   **ALB 미사용**, Cloudflare Tunnel + NGINX Ingress로 대체
+-   **ALB 미사용**, Cloudflare Tunnel + Envoy Gateway(Gateway API, ClusterIP)로 대체
 -   **On-Demand 우선 운영**, Spot은 서비스 완성 후 부하 테스트 결과를
     보고 별도 검토
 -   **ECR 이미지 정리 정책** 적용
