@@ -8,6 +8,10 @@ containerPort: 8080
 service:
   port: 80
 
+envFrom:
+  - secretRef:
+      name: backend-env
+
 livenessProbe:
   enabled: false
   path: /actuator/health
