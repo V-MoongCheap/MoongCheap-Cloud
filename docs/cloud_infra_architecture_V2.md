@@ -23,8 +23,10 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 | PostgreSQL + pgvector               | **AWS DB Private Subnet** |
 | ElastiCache (Redis)                 | **AWS**                   |
 | OpenSearch                          | **AWS**                   |
-| Prometheus · Loki · Grafana · Alloy | **BE·AI Worker Node**     |
-| Jenkins · ArgoCD                    | **BE·AI Worker Node**     |
+| Prometheus · Loki · Grafana         | **system Worker Node** `[개정 2026-09-21]` |
+| Alloy                               | 모든 Worker Node (DaemonSet) |
+| Jenkins Controller · ArgoCD         | **system Worker Node**    |
+| Jenkins Dynamic Agent               | 미지정 `[확정 필요]`          |
 | Terraform 관리 환경                     | **KT Cloud**              |
 | Backup Storage                      | **KT Cloud**              |
 
@@ -67,7 +69,7 @@ KT Cloud는 서비스 요청 처리 경로에 포함하지 않으며, **AWS 인�
 | ------------------ | -------- | ------------------------- | ------------------------------------------------------------- |
 | Public Subnet      | AWS VPC  | NAT Instance              | Private Subnet의 인터넷 아웃바운드                                     |
 | WEB Private Subnet | AWS VPC  | FE Worker Node            | Frontend(Next.js) 워크로드                                        |
-| WAS Private Subnet | AWS VPC  | BE·AI Worker Node         | Backend(Spring), API Server, AI CPU Workload, System Workload |
+| WAS Private Subnet | AWS VPC  | BE·AI Worker Node · system Worker Node | Backend(Spring), API Server, AI CPU Workload / System Workload(ArgoCD·Jenkins Controller·Observability·Envoy Gateway·cloudflared) |
 | DB Private Subnet  | AWS VPC  | RDS PostgreSQL + pgvector | 애플리케이션 데이터 및 Vector 데이터                                       |
 | Management         | KT Cloud | Terraform 관리 리소스          | AWS 인프라 Terraform Apply / Destroy                             |
 | Backup             | KT Cloud | Backup Storage            | AWS Primary Data의 이중화 백업                                      |
@@ -79,7 +81,8 @@ EKS는 **단일 Cluster**로 구성하며, Worker별로 배치 Subnet을 분리�
 | Worker 배치 Subnet 인스턴스 구성 주요 워크로드     |                    |                          |                                                                      |
 | ------------------------------------- | ------------------ | ------------------------ | -------------------------------------------------------------------- |
 | FE Worker (Managed Node Group)        | WEB Private Subnet | `t3.small ×2`            | Frontend                                                             |
-| BE·AI Worker (Karpenter)              | WAS Private Subnet | `t3.large ×N` (0~상한)     | Backend, API Server, AI CPU Workload, Jenkins, ArgoCD, Observability |
+| BE·AI Worker (Karpenter)              | WAS Private Subnet | `t3.large ×N` (0~상한)     | Backend, API Server, AI CPU Workload, Jenkins Dynamic Agent(배치 미지정) |
+| system Worker (Managed Node Group) `[개정 2026-09-21]` | WAS Private Subnet | `t3.medium ×2` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus·Grafana·Loki, ESO, Envoy Gateway, cloudflared |
 
 - FE Worker와 BE·AI Worker는 동일한 EKS Cluster에 포함한다.
 - FE Node Group 생성 시 대응하는 Private Subnet ID를 명시한다. BE·AI(Karpenter)는 WAS Private Subnet에 `karpenter.sh/discovery` 태그를 붙여 EC2NodeClass가 Subnet을 찾게 한다.
@@ -333,14 +336,18 @@ Frontend와 Backend·AI는 동일한 Cluster를 사용하되, Worker(FE는 Manag
 
 > **[개정 2026-09-17]** BE·AI Worker를 Managed Node Group에서 **Karpenter**로 변경(PR #13 반영, 팀 확정). FE Worker는 Managed Node Group 유지.
 
-EKS Worker Node는 **FE Worker(Managed Node Group)와 BE·AI Worker(Karpenter NodePool)**로 분리한다.
+> **[개정 2026-09-21]** System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·ESO·Envoy Gateway·cloudflared)를 위한 **system Worker(Managed Node Group `moongcheap-develop-system-ng`)** 를 추가(PR #27, DEC-1 (a)안). 아래 표·4.3·8.5와 gitops `nodeSelector: {workload: system}`이 이 기준을 따른다.
 
-초기에는 Observability 및 CI/CD 전용 Worker를 별도로 구성하지 않고 BE·AI Worker에 함께 배치한다.
+EKS Worker Node는 **FE Worker(Managed Node Group)·BE·AI Worker(Karpenter NodePool)·system Worker(Managed Node Group)** 세 그룹으로 분리한다.
+
+Observability 및 CI/CD 컨트롤러는 BE·AI Worker가 아니라 system Worker에 배치한다 — BE·AI는 Karpenter가 수요에 따라 0대까지 줄이므로 상시 떠 있어야 하는 컨트롤러를 둘 수 없기 때문이다.
 
 | Worker 배치 Subnet Instance Type 배치 워크로드      |                    |            |                                                                                                 |
 | ------------------------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------- |
 | **FE Worker** (Managed Node Group)          | WEB Private Subnet | `t3.small` | Frontend (Next.js)                                                                              |
-| **BE·AI Worker** (Karpenter)                | WAS Private Subnet | `t3.large` | Backend(Spring), API Server, AI CPU Workload, Jenkins, ArgoCD, Prometheus, Loki, Alloy, Grafana |
+| **BE·AI Worker** (Karpenter)                | WAS Private Subnet | `t3.large` | Backend(Spring), API Server, AI CPU Workload                                                    |
+| **system Worker** (Managed Node Group)      | WAS Private Subnet | `t3.medium` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus, Grafana, Loki, ESO, Envoy Gateway, cloudflared |
+| (모든 Worker)                                | —                  | —          | Alloy(DaemonSet — 노드마다 1개), kube-proxy, VPC CNI                                              |
 
 #### FE Worker Node Group
 
@@ -355,6 +362,27 @@ EKS Worker Node는 **FE Worker(Managed Node Group)와 BE·AI Worker(Karpenter No
 | Subnet        | WEB Private Subnet |
 | Public IP     | 사용하지 않음            |
 | Root Volume   | 20 GiB EBS         |
+
+#### system Worker Node Group `[개정 2026-09-21]`
+
+| 항목 값          |                    |
+| ------------- | ------------------ |
+| Node Group    | `moongcheap-{env}-system-ng` |
+| Instance Type | `t3.medium`        |
+| vCPU / Memory | `2 vCPU / 4 GiB`   |
+| Capacity Type | On-Demand          |
+| Desired Size  | `2`                |
+| Min Size      | `0` (Close 시 desired 0, 8.5) |
+| Max Size      | `2` — system 노드 여유 실측 후 `3` 검토 |
+| Subnet        | WAS Private Subnet |
+| Node Label    | `workload: system` |
+| Taint         | 없음                |
+| Public IP     | 사용하지 않음            |
+
+- ArgoCD·Karpenter Controller·Jenkins Controller·Prometheus·Grafana·Loki·ESO·Envoy Gateway(Controller + Envoy Proxy)·cloudflared는 `nodeSelector: {workload: system}`으로 이 그룹에 배치한다(gitops `platform/*/values.yaml` 기준).
+- Alloy(logs·metrics)는 DaemonSet이라 모든 Worker에 1개씩 뜬다.
+- **Jenkins Dynamic Agent는 `nodeSelector` 미지정** `[확정 필요]` — 현재는 스케줄러가 여유 있는 노드(FE 포함)에 배치한다. Build 부하를 BE·AI(Karpenter)로 보내려면 Pod 템플릿에 `nodeSelector: {workload: backend-ai}` 추가가 필요하다(K-2(d)).
+- Close 시 이 그룹이 `desired 0`이 되면 ArgoCD·Karpenter·Envoy·cloudflared가 함께 내려간다(8.5, Runbook 7.1).
 
 #### BE·AI Worker (Karpenter)
 
@@ -398,7 +426,8 @@ BE·AI Worker:
 
 - Frontend → FE Worker
 - Backend / API / AI → BE·AI Worker
-- Jenkins / ArgoCD / Observability → BE·AI Worker
+- ArgoCD / Karpenter Controller / Jenkins Controller / Prometheus·Grafana·Loki / ESO / Envoy Gateway / cloudflared → system Worker `[개정 2026-09-21]`
+- Alloy → 모든 Worker(DaemonSet) / Jenkins Dynamic Agent → 미지정 `[확정 필요]`
 - 모든 애플리케이션 Pod에 `resources.requests` / `resources.limits`를 지정한다.
 - Pod Resource 값은 각 파트의 최종 요구 사양을 반영한다.
 - 초기 구조에서는 GPU Taint/Toleration 설정을 사용하지 않는다.
@@ -412,17 +441,18 @@ BE·AI Worker:
 | -------------- | ------------------------ | -------------------------- |
 | 외부 진입          | Envoy Gateway (Gateway API CRD 동봉) `[확정 2026-09-19]` | `infra` Namespace, system Node Group |
 | Tunnel         | cloudflared (raw Deployment ×2) | `infra` Namespace, system Node Group |
-| 관찰성            | Prometheus               | BE·AI Worker               |
-| 관찰성            | Loki                     | BE·AI Worker               |
-| 관찰성            | Alloy                    | BE·AI Worker               |
-| 관찰성            | Grafana                  | BE·AI Worker               |
-| CI             | Jenkins Controller       | BE·AI Worker               |
-| CI             | Jenkins Dynamic Agent    | BE·AI Worker               |
-| CD             | ArgoCD                   | BE·AI Worker               |
+| 관찰성            | Prometheus               | system Worker `[개정 2026-09-21]` |
+| 관찰성            | Loki                     | system Worker              |
+| 관찰성            | Alloy                    | 모든 Worker (DaemonSet)      |
+| 관찰성            | Grafana                  | system Worker              |
+| CI             | Jenkins Controller       | system Worker              |
+| CI             | Jenkins Dynamic Agent    | 미지정 `[확정 필요]` — 권장 BE·AI Worker |
+| CD             | ArgoCD                   | system Worker              |
+| Secret         | External Secrets Operator | system Worker (`infra`)   |
 | 시스템            | Metrics Server           | EKS Cluster                |
 | 시스템            | EBS CSI Driver           | EKS Add-on                 |
 | 확장             | HPA                      | 애플리케이션 Pod `[적용 대상 확정 필요]` |
-| 확장             | Karpenter                | `kube-system` (Helm) — **도입 확정(2026-09-17)**, BE·AI Worker 프로비저닝 |
+| 확장             | Karpenter                | `kube-system` (Helm), Controller는 system Worker — **도입 확정(2026-09-17)**, BE·AI Worker 프로비저닝 |
 | 확장             | KEDA                     | `[도입 여부 확정 필요]`            |
 
 #### Pod Auto Scaling
@@ -804,13 +834,13 @@ EKS Pod에서 AWS Resource에 접근할 때 컨테이너 내부에 장기 Access
 
 CI/CD Pipeline 규칙은 Git 협업 문서를 기준으로 하며, 클라우드 인프라에서는 Jenkins와 ArgoCD의 실행 환경 및 Persistent Resource를 제공한다.
 
-초기에는 별도의 CI/CD 전용 Node Group을 구성하지 않고 **BE·AI Worker Node Group**에 배치한다.
+Jenkins Controller와 ArgoCD는 **system Worker Node Group**에 배치한다 `[개정 2026-09-21]`(4.2). Jenkins Dynamic Agent(Build Pod)는 현재 `nodeSelector` 미지정 `[확정 필요]` — Build 부하를 BE·AI Worker(Karpenter)로 보내는 것을 권장한다.
 
 | 구성 배치 운영 방식             |                        |                                  |
 | ----------------------- | ---------------------- | -------------------------------- |
-| Jenkins Controller      | BE·AI Worker           | PVC 사용, Configuration as Code 적용 |
-| Jenkins Agent           | Kubernetes Dynamic Pod | Build 시 생성, 완료 후 삭제              |
-| ArgoCD                  | BE·AI Worker           | GitOps 기반 배포                     |
+| Jenkins Controller      | system Worker          | PVC 사용, Configuration as Code 적용 |
+| Jenkins Agent           | Kubernetes Dynamic Pod, 배치 `[확정 필요]`(권장 BE·AI Worker) | Build 시 생성, 완료 후 삭제 |
+| ArgoCD                  | system Worker          | GitOps 기반 배포                     |
 | Container Image         | Amazon ECR             | 서비스별 Repository 사용               |
 | Jenkins Persistent Data | EBS 기반 PVC             | 동일 AZ 내 Controller 재배치 시 데이터 유지 (AZ 상이 시 7.2절 복구 절차 참고) |
 
@@ -846,7 +876,7 @@ EKS
 - ArgoCD Rollback은 Git의 이전 정상 상태로 되돌리는 **Git Revert 기반 절차**를 기본으로 한다.
 - Container Image Tag 및 Repository Naming은 Git 협업 문서를 따른다.
 - `latest` Tag는 사용하지 않는다.
-- Jenkins Build로 인해 BE·AI Worker의 리소스가 부족해지는 경우 CI/CD 전용 Node Group 분리를 검토한다.
+- Jenkins Build Pod의 배치 노드를 확정하고(`[확정 필요]`), Build로 인해 해당 Worker의 리소스가 부족해지는 경우 CI/CD 전용 Node Group 분리를 검토한다.
 
 #### Jenkins PVC AZ 제약 및 복구 절차
 
@@ -856,7 +886,7 @@ EBS 볼륨은 생성된 **Availability Zone에서만 노드에 연결**할 수 �
 
 - Jenkins Controller가 사용하는 EBS CSI `StorageClass`는 `volumeBindingMode: WaitForFirstConsumer`로 설정한다. 이를 통해 PV가 미리 특정 AZ에 생성되지 않고, Pod가 스케줄링된 이후 그 노드의 AZ에 맞춰 볼륨이 생성된다.
 - Jenkins Controller Pod는 최초 스케줄된 AZ에 고정되도록 하며, 이후 재배치는 `nodeAffinity` / `topology.kubernetes.io/zone` Label을 통해 동일 AZ의 노드로만 제한한다.
-- BE·AI Worker Node Group은 최소 2개 이상의 AZ에 걸쳐 구성되므로, 다른 AZ 노드로의 임의 재배치를 막기 위한 Affinity 설정 없이는 위 장애가 발생할 수 있다는 점에 유의한다.
+- Jenkins Controller가 뜨는 system Worker Node Group(WAS Private Subnet)도 최소 2개 이상의 AZ에 걸쳐 구성되므로 `[개정 2026-09-21]`, 다른 AZ 노드로의 임의 재배치를 막기 위한 Affinity 설정 없이는 위 장애가 발생할 수 있다는 점에 유의한다.
 
 해당 AZ 자체에 장애가 발생해 동일 AZ 내 재배치가 불가능한 경우(교차 AZ 복구)에는 자동 복구를 보장하지 않으며 다음 절차를 따른다.
 
@@ -886,7 +916,7 @@ Snapshot 주기, RPO/RTO 목표 및 자동화 여부는 `[확정 필요]`이다.
 
 클러스터 및 애플리케이션의 Metrics와 Logs는 **Prometheus / Alloy / Loki / Grafana** Stack으로 통합 관리한다.
 
-초기에는 별도의 Observability Node Group을 구성하지 않고 **BE·AI Worker Node Group**에 배치한다.
+Prometheus·Grafana·Loki는 **system Worker Node Group**에 배치하고 `[개정 2026-09-21]`(4.2), Alloy는 DaemonSet으로 모든 Worker에서 수집한다.
 
 | 계층 구성 역할            |                  |                                           |
 | ------------------- | ---------------- | ----------------------------------------- |

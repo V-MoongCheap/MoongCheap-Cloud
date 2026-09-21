@@ -242,7 +242,37 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 | 2 | BE·AI Karpenter 노드 | EC2 종료 (`karpenter.sh/nodepool` 태그로 조회) | 없음 — Pod 수요가 생기면 Karpenter가 다시 띄움 | `ec2 terminate-instances`. Karpenter 컨트롤러가 system-ng와 함께 내려간 뒤라 재프로비저닝 안 됨 |
 | 3 | NAT Instance | `stop` | `start` (노드보다 먼저) | `ec2 stop/start-instances`. ENI·EIP가 분리돼 있어 IP·라우트 유지 |
 
-**Open 후 확인 항목**: system-ng Ready → `kubectl -n infra get gateway moongcheap-gateway`가 `Programmed=True`, `kubectl -n infra get deploy cloudflared`가 2/2 Ready(로그 "Registered tunnel connection"). 둘 다 system-ng 위의 Pod라 별도 Open 조치는 없고, 이 상태가 되기 전까지 외부 도메인은 Cloudflare 530/502를 낸다.
+**Open 후 확인 항목** — 순서대로, 앞이 안 되면 뒤는 볼 필요 없음. Envoy·cloudflared·Route는 전부 system-ng 위라 별도 Open 조치는 없지만, **Gateway `Programmed=True`만으로 "열림"으로 판단하지 않는다**(Gateway가 준비돼도 개별 HTTPRoute는 `Accepted`·`ResolvedRefs`가 따로 평가되며, backend Service가 없으면 `Accepted=True / ResolvedRefs=False`로 외부는 404·5xx).
+
+```bash
+# 1) 노드
+kubectl get node -l workload=system                                   # 2대 Ready
+# 2) Gateway
+kubectl -n infra get gateway moongcheap-gateway \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'   # Accepted=True, Programmed=True
+kubectl -n infra get svc -l gateway.envoyproxy.io/owning-gateway-name=moongcheap-gateway   # TYPE=ClusterIP (LoadBalancer면 8.5 위반)
+# 3) HTTPRoute — 모든 Route가 Accepted=True 그리고 ResolvedRefs=True, parentRef가 infra/moongcheap-gateway
+kubectl get httproute -A \
+  -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,HOSTS:.spec.hostnames[*],ACCEPTED:.status.parents[0].conditions[?(@.type=="Accepted")].status,RESOLVED:.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status,PARENT:.status.parents[0].parentRef.name'
+# 4) cloudflared
+kubectl -n infra get deploy cloudflared                                # 2/2 Ready
+kubectl -n infra logs deploy/cloudflared --tail=20 | grep -c 'Registered tunnel connection'   # ≥ 1 (보통 4)
+# 5) Host별 smoke test — 클러스터 안에서 Envoy로 직접(도메인·Cloudflare 무관)
+for h in moongcheap.shop api.moongcheap.shop jenkins.moongcheap.shop grafana.moongcheap.shop argocd.moongcheap.shop; do
+  printf '%-28s ' "$h"; kubectl -n infra run curl-$RANDOM --rm -i --restart=Never --image=curlimages/curl -q -- \
+    curl -s -o /dev/null -w '%{http_code}\n' -H "Host: $h" http://moongcheap-envoy.infra.svc.cluster.local/
+done                                                                   # 200/301/302/401(Access) 정상, 404=Route 없음, 503=backend 없음
+# 6) 외부(도메인 apply 후) — Cloudflare Access 뒤 호스트는 302/403이 정상
+curl -sI https://moongcheap.shop | head -1
+```
+
+| 증상 | 원인 | 확인 |
+|---|---|---|
+| 3)에서 `ResolvedRefs=False` | backendRef Service 이름/ns/port 불일치 | `kubectl -n <ns> get svc` 와 HTTPRoute `backendRefs` 대조 |
+| 3)에서 `Accepted=False` | parentRef ns 불일치 또는 Gateway listener `allowedRoutes` | `gateway.spec.listeners[].allowedRoutes.namespaces.from=All` |
+| 5)에서 404 | 해당 Host의 HTTPRoute 없음 / hostnames 오타 | 3)의 HOSTS 열 |
+| 5)에서 503 | Route는 있는데 backend Pod 없음(Close 직후 BE·AI 노드 미기동 등) | `kubectl -n <ns> get endpoints <svc>` |
+| 6)만 530/502 | cloudflared 미기동 또는 토큰 | 4) |
 
 **Close 상태에서도 계속 나가는 비용**: EKS Control Plane + RDS + ElastiCache + OpenSearch ≈ **$345/월**(6.1). Close로 줄어드는 것은 Node(FE·BE·AI) + NAT 실행 시간분이다.
 

@@ -733,11 +733,23 @@ gitops/
 │   └── overrides/{develop,prod}/{frontend,backend,ai}.yaml
 │
 ├── platform/                      # 클러스터 공통 Platform (한 세트)
+│   ├── argocd/                    # ArgoCD self-manage values (부트스트랩 후 자기 관리)
 │   ├── jenkins/
+│   ├── karpenter/
+│   │   ├── controller/            # Helm: config.yaml + values.yaml
+│   │   └── resources/             # NodePool · EC2NodeClass (raw manifest)
+│   ├── envoy-gateway/
+│   │   ├── config.yaml + values.yaml   # Helm: gateway-helm (Gateway API CRD 동봉)
+│   │   └── resources/             # GatewayClass · EnvoyProxy · Gateway · Platform HTTPRoute
+│   ├── cloudflared/               # raw Deployment + ConfigMap (Helm 아님)
+│   ├── external-secrets/
+│   │   ├── config.yaml + values.yaml   # Helm: ESO
+│   │   └── resources/             # ClusterSecretStore · ExternalSecret
+│   ├── storage/                   # StorageClass gp3 (raw manifest)
 │   ├── monitoring/{kube-prometheus-stack,loki}/
-│   ├── observability/{alloy-logs,alloy-metrics}/
-│   └── argocd/ karpenter/ envoy-gateway/ cloudflared/ external-secrets/ storage/   # 2026-09-21 기준 전부 존재
-│       └── config.yaml + values.yaml
+│   └── observability/{alloy-logs,alloy-metrics}/
+│   # Helm Component: config.yaml(chart 좌표) + values.yaml — applicationset-platform이 config.yaml을 자동 탐색
+│   # raw manifest(resources/, cloudflared/, storage/): gitops/argocd/application-*.yaml 이 개별 Application으로 sync
 │
 ├── argocd/
 │   ├── projects/{services,platform}-project.yaml
