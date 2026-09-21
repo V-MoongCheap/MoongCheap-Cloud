@@ -40,7 +40,7 @@ singleBinary:
   persistence:
     enabled: true
     size: 20Gi
-    storageClassName: gp3
+    storageClass: gp3
   nodeSelector:
     workload: system
 read:
