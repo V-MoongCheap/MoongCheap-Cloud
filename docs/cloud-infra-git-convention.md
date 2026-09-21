@@ -857,10 +857,16 @@ docs/
 ``` text
 *.tfstate
 *.tfstate.*
+!terraform/bootstrap/terraform.tfstate   # 예외 — 아래 참고
 .terraform/
+.terraform.tfstate.lock.info
 
 *.tfvars
+*.tfvars.json
 !*.tfvars.example
+
+*tfplan*                                 # plan 파일은 state와 같은 위험군 (2026-09-17 유출 사고)
+*.zip                                    # archive_file이 만드는 Lambda 배포 패키지 (빌드 산출물)
 
 .env
 .env.*
@@ -871,6 +877,11 @@ docs/
 kubeconfig
 credentials
 ```
+
+**예외 — `terraform/bootstrap/terraform.tfstate`는 커밋한다.** bootstrap은 remote
+backend용 S3 버킷 자체를 만드는 코드라 remote backend를 쓸 수 없고, 이 state가
+Repository에 없으면 다른 팀원이 bootstrap을 이어받을 수 없다. `envs/*`는 S3 remote
+backend(`use_lockfile = true`)를 쓰므로 state가 로컬/Git에 남지 않는다.
 
 또한 다음과 같은 Secret 정보는 어떠한 형태로도 Repository에 저장하지
 않는다.
