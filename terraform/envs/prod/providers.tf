@@ -7,7 +7,7 @@ provider "aws" {
       Project     = "MoongCheap"
       ManagedBy   = "Terraform"
       Service     = "infra"
-      Owner       = "infra"
+      Owner       = "cloud"
       Environment = "prod"
     }
   }
