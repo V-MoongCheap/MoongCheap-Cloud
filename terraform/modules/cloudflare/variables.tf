@@ -1,3 +1,14 @@
+variable "project" {
+  type        = string
+  description = "프로젝트 이름"
+  default     = "moongcheap"
+}
+
+variable "env" {
+  type        = string
+  description = "환경 구분 (develop/prod)"
+}
+
 variable "account_id" {
   type        = string
   description = "Cloudflare 계정 ID (대시보드 우측 사이드바에서 확인)"
@@ -29,4 +40,11 @@ variable "extra_subdomains" {
   type        = list(string)
   description = "Tunnel에 추가로 연결할 서브도메인 목록 (zone 기준 상대 이름). 비우면 아무것도 안 만든다"
   default     = []
+}
+
+
+variable "secret_recovery_window_in_days" {
+  type        = number
+  description = "Cloudflare Tunnel Token Secret 삭제 시 복구 대기 기간(일). 0이면 즉시 완전 삭제(복구 불가)"
+  default     = 7
 }

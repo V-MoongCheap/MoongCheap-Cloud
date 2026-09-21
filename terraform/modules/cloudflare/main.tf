@@ -17,6 +17,16 @@ resource "cloudflare_zero_trust_tunnel_cloudflared" "this" {
   config_src = "local"
 }
 
+resource "aws_secretsmanager_secret" "tunnel_token" {
+  name                    = "${var.project}-${var.env}-infra-cloudflare-tunnel-secret"
+  recovery_window_in_days = var.secret_recovery_window_in_days
+}
+
+resource "aws_secretsmanager_secret_version" "tunnel_token" {
+  secret_id     = aws_secretsmanager_secret.tunnel_token.id
+  secret_string = cloudflare_zero_trust_tunnel_cloudflared.this.tunnel_token
+}
+
 resource "cloudflare_record" "tunnel" {
   zone_id = var.zone_id
   name    = var.subdomain == "" ? "@" : var.subdomain

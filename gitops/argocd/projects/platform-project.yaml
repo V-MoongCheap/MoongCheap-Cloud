@@ -15,7 +15,8 @@ spec:
     - https://charts.jenkins.io
     - public.ecr.aws/karpenter
     - docker.io/envoyproxy
-
+    - https://charts.external-secrets.io
+    
   destinations:
     - server: https://kubernetes.default.svc
       namespace: monitoring
