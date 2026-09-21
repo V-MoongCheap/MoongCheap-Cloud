@@ -41,11 +41,11 @@ data "aws_iam_policy_document" "ebs_csi_assume_role" {
 }
 
 resource "aws_iam_role" "ebs_csi_driver" {
-  name               = "${var.project}-${var.env}-ebs-csi-driver-role"
+  name               = "${var.project}-${var.env}-ebs-csi-role"
   assume_role_policy = data.aws_iam_policy_document.ebs_csi_assume_role.json
 
   tags = {
-    Name = "${var.project}-${var.env}-ebs-csi-driver-role"
+    Name = "${var.project}-${var.env}-ebs-csi-role"
   }
 }
 
