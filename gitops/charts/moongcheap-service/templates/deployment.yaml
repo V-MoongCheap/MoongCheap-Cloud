@@ -71,6 +71,8 @@ spec:
               port: http
             initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+            timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds | default 1 }}
+            failureThreshold: {{ .Values.readinessProbe.failureThreshold | default 3 }}
           {{- end }}
 
       {{- with .Values.nodeSelector }}

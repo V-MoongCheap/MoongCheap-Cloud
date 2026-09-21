@@ -24,8 +24,20 @@ livenessProbe:
   path: /actuator/health
 
 readinessProbe:
-  enabled: false
+  enabled: true
   path: /actuator/health
+  initialDelaySeconds: 90
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
 
 nodeSelector:
   workload: backend-ai
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
