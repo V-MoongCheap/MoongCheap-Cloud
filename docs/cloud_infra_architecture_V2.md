@@ -1078,7 +1078,7 @@ AWS Infrastructure  ◀── 같은 리소스 ──▶  Compute만 desired 0�
 
 로컬 Terraform 실행 환경은 각자의 IAM User(Access Entry에 등록된 `v-infra-*`)를 사용하며, Remote State(8.4)와 S3 Lockfile로 동시 실행을 제어한다.
 
-AWS 인증정보를 Terraform Code, `terraform.tfvars` 또는 Git Repository에 평문으로 저장하지 않는다. `terraform plan -out` 산출물과 State 사본도 같은 취급이다(`.gitignore`로 차단).
+AWS 인증정보를 Terraform Code, `terraform.tfvars` 또는 Git Repository에 평문으로 저장하지 않는다. `terraform plan -out` 산출물과 State 사본도 같은 취급이다(`.gitignore`로 차단). 유일한 예외는 `terraform/bootstrap/terraform.tfstate`이며 그 범위와 조건은 8.4에 정의한다.
 
 MGMT 서버의 인증 방식은 3.5에 정의한다.
 
@@ -1103,6 +1103,21 @@ Terraform State Bucket은 AWS Infrastructure의 재생성에 필요한 핵심 Re
 State Bucket은 애플리케이션 Object Storage Bucket과 분리한다.
 
 State Locking은 별도 DynamoDB Table 없이 S3 Backend의 `use_lockfile = true` 옵션(S3 Native Locking)을 사용한다. 동시에 여러 사람이 `terraform apply`를 실행하면 먼저 Lock을 획득한 작업만 진행되고, 나머지는 Lock이 해제될 때까지 대기하거나 실패한다.
+
+#### bootstrap Local State 예외 `[명시 2026-09-21]`
+
+`terraform/bootstrap/`은 위 State Bucket 자체를 만드는 코드라 Remote Backend를 쓸 수 없고, Local State(`terraform/bootstrap/terraform.tfstate`)를 **Git에 커밋하는 유일한 예외**로 둔다. 이 state가 Repository에 없으면 다른 팀원이 bootstrap을 이어받을 수 없기 때문이다(Git Convention 15절, 네이밍 10절과 동일 규칙).
+
+예외가 성립하는 조건:
+
+| 조건 | 내용 |
+|---|---|
+| 관리 대상 한정 | bootstrap에는 State Bucket과 그 부속 설정(`aws_s3_bucket`, versioning, SSE, public access block)만 둔다. Secret·Webhook·인증정보를 입력으로 받는 리소스(Budget Alert, Lambda, Secrets Manager 등)는 bootstrap에 두지 않고 `envs/*`(Remote State)에서 관리한다 |
+| 민감정보 금지 | 커밋되는 state에 자격증명·토큰·Webhook URL·비밀번호가 포함돼서는 안 된다. 리소스 추가 시 `terraform show`로 state에 민감값이 들어가지 않는지 확인한 뒤 커밋한다 |
+| 파일 범위 | `terraform.tfstate` 1개만 예외. `terraform.tfstate.backup`·`*.tfplan`은 예외가 아니며 `.gitignore`가 차단한다 |
+| 위반 시 | 민감정보가 커밋되면 값 재발급 + 이력 재작성(2026-09-16 Discord Webhook 유출 사고 대응과 동일, `docs_troubleshooting/2026-09-16-01`) |
+
+2026-09-16 사고(bootstrap에 있던 Budget Alert 모듈의 Discord Webhook URL이 이 state로 커밋됨)가 이 조건을 만든 계기이며, 해당 모듈은 `envs/develop`으로 이전됐다. 현재 bootstrap state에는 S3 Bucket 관련 리소스 4개만 있다.
 
 ---
 
