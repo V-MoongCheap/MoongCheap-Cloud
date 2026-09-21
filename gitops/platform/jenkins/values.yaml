@@ -5,7 +5,7 @@
 
 controller:
   admin:
-    createSecret: false
+    createSecret: true
     existingSecret: "jenkins-admin-secret"
 
   image:
