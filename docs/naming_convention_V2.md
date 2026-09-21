@@ -796,8 +796,10 @@ Secrets Operator(ESO)** 로 확정한다. 상세는 설계서 7.1 참고.
 .terraform/
 *.tfstate
 *.tfstate.*
+!terraform/bootstrap/terraform.tfstate   # 유일한 예외 (Git Convention 15절)
 *.tfvars
 !*.tfvars.example
+*tfplan*
 
 .env
 .env.*

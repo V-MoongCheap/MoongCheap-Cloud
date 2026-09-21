@@ -296,10 +296,10 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 <!-- -->
 ```
       Project = MoongCheap
-      Environment = dev | prod
+      Environment = develop | prod
       ManagedBy = Terraform
       Service = backend | ai | observability | infra
-      Owner = infra
+      Owner = cloud
 
 ------------------------------------------------------------------------
 
