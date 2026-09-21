@@ -4,6 +4,10 @@
 # [배포 후 기입]으로 표시된 값은 실제 AWS 계정/클러스터 정보가 나온 뒤 채워야 합니다.
 
 controller:
+  admin:
+    createSecret: true
+    existingSecret: "jenkins-admin-secret"
+
   image:
     repository: "jenkins/jenkins"
     tag: "lts-jdk17"
