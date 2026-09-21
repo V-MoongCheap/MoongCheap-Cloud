@@ -8,6 +8,13 @@ containerPort: 8080
 service:
   port: 80
 
+env:
+  - name: REDIS_HOST
+    value: "moongcheap-develop-redis.mzcbtb.ng.0001.apn2.cache.amazonaws.com"
+
+  - name: REDIS_PORT
+    value: "6379"
+
 envFrom:
   - secretRef:
       name: backend-env
