@@ -1,0 +1,7 @@
+name: external-secrets
+namespace: infra
+
+helm:
+  repoURL: https://charts.external-secrets.io
+  chart: external-secrets
+  version: "2.9.0"
