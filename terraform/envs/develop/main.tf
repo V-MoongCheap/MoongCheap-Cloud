@@ -52,6 +52,12 @@ module "eks" {
   cluster_role_arn = module.iam.cluster_role_arn
   node_role_arn    = module.iam.node_role_arn
 
+  # D-30: 정책 attachment → EKS 순서는 아래 두 목록의 암묵 의존으로 보장한다(modules/eks/locals.tf).
+  # 예전의 module 단위 depends_on = [module.iam]은 iam 변경 시 eks 모듈 data source를 전부
+  # 지연시켜 Access Entry 5명 replace를 일으켰으므로 쓰지 않는다.
+  cluster_role_policy_attachment_ids = module.iam.cluster_role_policy_attachment_ids
+  node_role_policy_attachment_ids    = module.iam.node_role_policy_attachment_ids
+
   # 컨트롤 플레인은 WEB+WAS Private Subnet 전부에 ENI를 둘 수 있어야 하므로 합집합을 전달한다.
   subnet_ids     = concat(module.vpc.web_private_subnet_ids, module.vpc.was_private_subnet_ids)
   web_subnet_ids = module.vpc.web_private_subnet_ids
@@ -66,10 +72,6 @@ module "eks" {
   # C-5: BE Pod(be-sa)가 S3 Object 버킷을 읽고 쓸 IRSA Role. 버킷 ARN을 넘기면 만들어진다.
   be_s3_bucket_arn = module.s3.bucket_arn
 
-  # cluster_role_arn은 Role 생성 직후 알 수 있지만, 실제로는 정책(AmazonEKSClusterPolicy)이
-  # 붙어있어야 클러스터 생성이 성공한다. output 값만으로는 이 순서가 보장되지 않아
-  # module.iam 전체(정책 attachment 포함)가 끝난 뒤에 실행되도록 명시적으로 의존성을 건다.
-  depends_on = [module.iam]
 }
 
 module "karpenter" {

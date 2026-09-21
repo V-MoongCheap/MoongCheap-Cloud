@@ -445,7 +445,7 @@ Open/Close 자동화 전용이다. `develop`에 머지되면 MGMT 서버가 5분
 ``` text
 moongcheap-{env}      # 서비스 (frontend / backend / ai)
 argocd                # ArgoCD
-infra                 # Jenkins, ingress-nginx, cloudflared, ESO
+infra                 # Jenkins, Envoy Gateway(컨트롤러+Envoy Proxy), cloudflared, ESO
 monitoring            # Prometheus / Grafana / Loki / Alloy
 kube-system           # Karpenter, EKS Add-on
 ```
@@ -455,7 +455,7 @@ kube-system           # Karpenter, EKS Add-on
   `moongcheap-develop`  Frontend / Backend / AI (develop)
   `moongcheap-prod`     Frontend / Backend / AI (prod — 8.1절, 현재 비활성)
   `argocd`              ArgoCD
-  `infra`               Jenkins / ingress-nginx / cloudflared / External Secrets
+  `infra`               Jenkins / Envoy Gateway / cloudflared / External Secrets
   `monitoring`          kube-prometheus-stack / Loki / Alloy
   `kube-system`         Karpenter Controller, EKS Add-on
 
@@ -490,7 +490,7 @@ ArgoCD AppProject는 `moongcheap-services`(서비스) / `moongcheap-platform`
 ### 5.3 Kubernetes Object
 
 공통 Chart(`moongcheap-service`)가 `nameOverride: {service}`로 이름을 정하므로
-서비스의 Deployment / Service / HPA / PDB / Ingress는 **모두 `{service}`
+서비스의 Deployment / Service / HPA / PDB / HTTPRoute는 **모두 `{service}`
 하나의 이름**을 쓰고 kind로 구분한다.
 
 ``` text
@@ -500,7 +500,7 @@ ArgoCD AppProject는 `moongcheap-services`(서비스) / `moongcheap-platform`
 예:
 
 ``` text
-frontend    # Deployment, Service, HPA, PDB 전부 frontend
+frontend    # Deployment, Service, HPA, PDB, HTTPRoute 전부 frontend
 backend
 ai
 ```
@@ -889,4 +889,4 @@ Router 관련 Naming은 폐기한다.
 | 9 | Jenkins / ArgoCD Resource 및 PVC | Helm |
 | 10 | Prometheus / Loki / Grafana / Alloy Resource 및 Retention | Helm |
 | 11 | KT Cloud Backup 방식 / 주기 / 보존 / Restore 정책 | Backup / DR |
-| 12 | Gateway API 전환 여부 및 구현체 | Kubernetes Networking |
+| 12 | ~~Gateway API 전환 여부 및 구현체~~ **확정(2026-09-19): Gateway API 채택, 구현체 Envoy Gateway** — 설계서 3.2 | Kubernetes Networking |

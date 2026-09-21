@@ -47,6 +47,23 @@ variable "node_role_arn" {
   description = "EKS Worker Node용 IAM Role ARN (modules/iam 출력값)"
 }
 
+# D-30: 호출부의 module 단위 depends_on = [module.iam]을 대체하는 입력.
+# 이 두 목록을 locals에서 참조하기만 해서(값은 안 씀) "iam 정책 attachment → EKS" 순서를
+# 암묵 의존으로 만든다. module depends_on은 iam 모듈에 아무 변경(태그 한 줄)이 생겨도
+# 이 모듈의 data source 읽기를 apply 시점까지 미뤄 account_id가 unknown → Access Entry
+# 5명 전원 replace를 일으켰다(2026-09-21, 현황 문서 D-30 / 트러블슈팅 2026-09-17-04와 같은 메커니즘).
+variable "cluster_role_policy_attachment_ids" {
+  type        = list(string)
+  description = "클러스터 Role 정책 attachment ID 목록 (modules/iam 출력값, 순서 의존 전용)"
+  default     = []
+}
+
+variable "node_role_policy_attachment_ids" {
+  type        = list(string)
+  description = "Node Role 정책 attachment ID 목록 (modules/iam 출력값, 순서 의존 전용)"
+  default     = []
+}
+
 # 아키텍처 설계서_V2 4.2: FE는 t3.small 고정 Managed Node Group을 유지한다.
 # BE·AI(Backend/API/AI CPU/Jenkins/ArgoCD/Observability 통합)는 modules/karpenter가
 # 대체하므로 여기엔 인스턴스 타입 변수가 없다.

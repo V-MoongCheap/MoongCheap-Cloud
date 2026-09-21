@@ -3,7 +3,7 @@
 # Endpoint 접근은 팀 확정 전까지 Public+Private 둘 다 허용하는 임시값이다.
 resource "aws_eks_cluster" "this" {
   name     = "${var.project}-${var.env}-eks"
-  role_arn = var.cluster_role_arn
+  role_arn = local.cluster_role_arn
   version  = var.cluster_version
 
   # 기본값 EXTENDED는 표준 지원(약 14개월)이 끝나면 자동으로 확장 지원 요금
