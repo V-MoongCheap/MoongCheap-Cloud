@@ -30,6 +30,8 @@ spec:
       namespace: argocd
     - server: https://kubernetes.default.svc
       namespace: kube-node-lease
+    - server: https://kubernetes.default.svc
+      namespace: moongcheap-develop
         
   clusterResourceWhitelist:
     - group: "*"
