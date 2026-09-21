@@ -1,7 +1,5 @@
 # cloudflared-token Secret은 git에 커밋하지 않는다.
-# 클러스터에 미리 아래처럼 생성해둔다:
-#   kubectl create secret generic cloudflared-token -n infra \
-#     --from-literal=token="$(terraform -chdir=terraform/envs/develop output -raw cloudflare_tunnel_token)"
+# ESO가 aws secret manager의 값을 가져와서 자동으로 cloudflared-token을 생성한다.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
