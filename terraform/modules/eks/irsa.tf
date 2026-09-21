@@ -47,11 +47,23 @@ resource "aws_iam_role" "ebs_csi_driver" {
   tags = {
     Name = "${var.project}-${var.env}-ebs-csi-role"
   }
+
+  # name은 ForceNew. 기본 순서(옛 Role 삭제 → 새 Role 생성 → add-on 연결)는 그 사이에
+  # CSI 컨트롤러가 AssumeRoleWithWebIdentity에 실패해 attach/detach/provision이 멈추는 창을
+  # 만든다(PVC가 이미 있는 상태에서 이름을 바꾼 2026-09-21 B-2). 새 Role을 먼저 만들고
+  # add-on을 옮긴 뒤 옛 Role을 지우도록 해서 그 창을 없앤다. 이름이 다르므로 충돌 없음.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "ebs_csi_driver" {
   role       = aws_iam_role.ebs_csi_driver.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # External Secrets Operator(ESO) IRSA Role (DEC-2 확정: Secrets Manager → Pod
