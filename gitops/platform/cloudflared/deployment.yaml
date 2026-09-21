@@ -23,9 +23,11 @@ spec:
         workload: system
       containers:
         - name: cloudflared
-          image: cloudflare/cloudflared:latest   # TODO: 배포 전 실제 최신 안정 버전으로 고정
+          image: cloudflare/cloudflared:2026.9.1
           args:
             - tunnel
+            - --metrics
+            - 0.0.0.0:2000
             - --config
             - /etc/cloudflared/config.yml
             - --no-autoupdate

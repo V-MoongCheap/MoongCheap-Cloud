@@ -144,9 +144,10 @@ cloudflared ConfigMap(`gitops/platform/cloudflared/configmap.yaml`)에는 5개 �
    `gitops/argocd/projects/platform-project.yaml`(플랫폼) 또는
    `services-project.yaml`(서비스)의 `destinations`에 그 네임스페이스를 추가해야 함.
 
-5. **커밋 순서**: Terraform(DNS) → cloudflared ConfigMap → HTTPRoute 순으로 적용하면
-   중간에 트래픽이 씹히는 구간이 없다 (DNS가 먼저 준비되어 있어야 하고, cloudflared가
-   호스트를 알아야 Envoy까지 트래픽이 오고, 그 다음 Envoy가 실제 목적지를 알아야 함).
+5. **커밋 순서**: HTTPRoute → cloudflared ConfigMap → Terraform(DNS) 순으로 적용하면
+   된다. 클러스터 안쪽(HTTPRoute, cloudflared 라우팅 표)을 먼저 다 준비해두고 DNS를
+   가장 마지막에 켜야, 외부에 도메인이 노출되는 순간 이미 라우팅이 전부 완성된
+   상태라 "도메인은 열렸는데 아직 안 뚫린" 구간이 생기지 않는다.
 
 ## 5. TODO — FE / BE / AI 쪽에서 반영해야 하는 것
 
