@@ -1,24 +1,28 @@
-// Jenkinsfile (backend)
+// Jenkinsfile (ai - 판매자 수요 분석 API)
 //
-// gitops/jenkins/pipelines/Jenkinsfile.template을 기반으로
-// backend 서비스에 맞게 만든 파일입니다.
-// 리뷰 후 최종적으로는 MoongCheap-backend 레포 최상단에
-// 이 파일 이름 그대로(Jenkinsfile) 복사해서 사용합니다.
+// MoongCheap-AI 레포에 AI팀이 올려둔 초안(PR #36)에서 Build/Test 단계는 그대로 두고,
+// backend/frontend Jenkinsfile과 동일한(버그 수정 반영된) 패턴으로
+// "GitOps 레포 업데이트" 단계를 채워 완성한 파일입니다.
 //
-// NOTE: Dependency Scan / Secret Scan / Container Image Scan 스테이지는
-// 원래 PR #28에서 추가됐었는데, 이후 Jenkinsfile.template 구조로
-// 리팩터링하면서 누락됐던 걸 여기서 다시 복구함.
+// NOTE: 이 저장소(MoongCheap-AI)에는 이미지가 4개 있습니다 —
+//   Dockerfile.seller-analysis(이 파일이 담당) · Dockerfile.awarding ·
+//   Dockerfile.a-labeling · Dockerfile.demand-clustering.
+//   나머지 세 개는 파트별 Job 구성이 정해진 뒤 별도로 추가합니다
+//   (준우님 답변: Job은 파트별로 분리, 같은 ECR 레포(moongcheap/ai) 안에서
+//   이미지 태그로 구분). 그래서 태그 앞에 COMPONENT를 붙여서 다른 파트
+//   이미지와 절대 안 겹치게 했습니다.
 
 pipeline {
     agent none
 
     environment {
-        SERVICE_NAME = 'backend'
-        BUILD_LABEL = 'java-builder'
-        ECR_REPO = 'moongcheap/backend'
-        ECR_REGISTRY = '840851421204.dkr.ecr.ap-northeast-2.amazonaws.com'
+        SERVICE_NAME    = 'ai'
+        COMPONENT       = 'seller-analysis'
+        BUILD_LABEL     = 'python-builder'
+        ECR_REPO        = 'moongcheap/ai'
+        ECR_REGISTRY    = '840851421204.dkr.ecr.ap-northeast-2.amazonaws.com'
         GITOPS_REPO_URL = 'https://github.com/V-MoongCheap/MoongCheap-Cloud.git'
-        DOCKERFILE_PATH = 'docker/Dockerfile'
+        DOCKERFILE_PATH = 'docker/Dockerfile.seller-analysis'
     }
 
     stages {
@@ -37,24 +41,19 @@ pipeline {
                         error "지원하지 않는 배포 브랜치입니다: ${env.BRANCH_NAME}"
                     }
 
-                    env.GIT_SHORT_SHA = sh(
-                        script: 'git rev-parse --short=7 HEAD',
-                        returnStdout: true
-                    ).trim()
-
-                    env.IMAGE_TAG = "${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
-
-                    // Spring profile은 ENVIRONMENT(prod/develop)와 이름이 달라서 따로 매핑한다.
-                    env.SPRING_PROFILE = (env.ENVIRONMENT == 'prod') ? 'prod' : 'dev'
+                    env.GIT_SHORT_SHA = sh(script: 'git rev-parse --short=7 HEAD', returnStdout: true).trim()
+                    // 태그 앞에 COMPONENT를 붙여서, 같은 ECR 레포를 공유할 다른 파트
+                    // (awarding / a-labeling / demand-clustering) 이미지와 겹치지 않게 한다.
+                    env.IMAGE_TAG = "${COMPONENT}-${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
 
                     echo "Git Commit SHA: ${env.GIT_SHORT_SHA}"
                     echo "Image Tag: ${env.IMAGE_TAG}"
-                    echo "Spring Profile: ${env.SPRING_PROFILE}"
                 }
                 container('builder') {
+                    // 이미지 런타임은 requirements-api.txt 만 쓴다.
+                    // 테스트는 pandas·pytest 가 더 필요해 여기서만 설치한다.
                     sh '''
-                        chmod +x gradlew
-                        ./gradlew clean build -x test --no-daemon
+                        python -m pip install --no-cache-dir -r requirements-api.txt "pytest>=8,<9" "pandas>=2.2,<3"
                     '''
                 }
                 stash name: 'build-output', includes: '**', excludes: '.git/**'
@@ -66,38 +65,9 @@ pipeline {
             steps {
                 unstash 'build-output'
                 container('builder') {
-                    sh './gradlew test --no-daemon'
-                }
-            }
-        }
-
-        stage('Dependency Scan') {
-            agent { kubernetes { label BUILD_LABEL } }
-            steps {
-                unstash 'build-output'
-                container('builder') {
                     sh '''
-                        TRIVY_VERSION=0.56.2
-                        curl -sSL -o trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-                        tar -xzf trivy.tar.gz trivy
-                        chmod +x trivy
-                        ./trivy fs --severity CRITICAL,HIGH --exit-code 1 .
-                    '''
-                }
-            }
-        }
-
-        stage('Secret Scan') {
-            agent { kubernetes { label BUILD_LABEL } }
-            steps {
-                unstash 'build-output'
-                container('builder') {
-                    sh '''
-                        GITLEAKS_VERSION=8.21.2
-                        curl -sSL -o gitleaks.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-                        tar -xzf gitleaks.tar.gz gitleaks
-                        chmod +x gitleaks
-                        ./gitleaks detect --source . --exit-code 1
+                        python -m pip install --no-cache-dir -r requirements-api.txt "pytest>=8,<9" "pandas>=2.2,<3"
+                        python -m pytest tests/seller_analysis -q
                     '''
                 }
             }
@@ -112,27 +82,7 @@ pipeline {
                         /kaniko/executor \
                           --context=`pwd` \
                           --dockerfile=`pwd`/${DOCKERFILE_PATH} \
-                          --build-arg SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
                           --destination=${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
-                    """
-                }
-            }
-        }
-
-        stage('Container Image Scan') {
-            agent { kubernetes { label BUILD_LABEL } }
-            steps {
-                container('builder') {
-                    sh '''
-                        TRIVY_VERSION=0.56.2
-                        curl -sSL -o trivy.tar.gz "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
-                        tar -xzf trivy.tar.gz trivy
-                        chmod +x trivy
-                        pip install --quiet awscli || pip3 install --quiet awscli
-                    '''
-                    sh """
-                        ECR_PASSWORD=\$(aws ecr get-login-password --region ap-northeast-2)
-                        ./trivy image --username AWS --password "\$ECR_PASSWORD" --severity CRITICAL --exit-code 1 ${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
                     """
                 }
             }
@@ -176,7 +126,7 @@ pipeline {
                             git config user.name "jenkins-ci"
                             git config user.email "jenkins-ci@moongcheap.local"
                             git add "$OVERRIDE_FILE"
-                            git commit -m "ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}"
+                            git commit -m "ci(gitops): update ${SERVICE_NAME}(${COMPONENT}) image tag to ${IMAGE_TAG}"
                             git push origin "$BRANCH_NAME"
 
                             GITOPS_API_REPO="${REPO_HOST#github.com/}"
@@ -185,7 +135,7 @@ pipeline {
                               -H "Authorization: token ${GIT_TOKEN}" \
                               -H "Accept: application/vnd.github+json" \
                               "https://api.github.com/repos/${GITOPS_API_REPO}/pulls" \
-                              -d "{\"title\":\"ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}\",\"head\":\"${BRANCH_NAME}\",\"base\":\"${BASE_BRANCH}\"}"
+                              -d "{\"title\":\"ci(gitops): update ${SERVICE_NAME}(${COMPONENT}) image tag to ${IMAGE_TAG}\",\"head\":\"${BRANCH_NAME}\",\"base\":\"${BASE_BRANCH}\"}"
                         '''
                     }
                 }
@@ -198,7 +148,7 @@ pipeline {
             echo "이미지 ${ECR_REPO}:${IMAGE_TAG} 빌드/푸시 완료. 이미지 태그가 바뀌었다면 GitOps PR도 생성됨 — PR Merge 후 ArgoCD Sync 진행."
         }
         failure {
-            echo "파이프라인 실패 — Build/Test/Scan/Push/GitOps 커밋 중 어느 단계인지 로그 확인 필요."
+            echo "파이프라인 실패 — Build/Test/Push/GitOps 커밋 중 어느 단계인지 로그 확인 필요."
         }
     }
 }
