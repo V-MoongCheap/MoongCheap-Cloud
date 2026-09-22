@@ -1,0 +1,8 @@
+# gitops/platform/keda/config.yaml
+name: keda
+namespace: keda
+
+helm:
+  repoURL: https://kedacore.github.io/charts
+  chart: keda
+  version: 2.20.2
