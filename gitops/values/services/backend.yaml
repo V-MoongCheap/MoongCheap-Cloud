@@ -18,6 +18,12 @@ env:
   # - name: SPRING_SESSION_DATA_REDIS_CONFIGURE_ACTION
   #   value: "none"
 
+  - name: ALLOWED_ORIGINS
+    value: "https://moongcheap.shop/"
+
+  - name: OAUTH_REDIRECT_BASE_URL
+    value: "https://moongcheap.shop/"
+
 envFrom:
   - secretRef:
       name: backend-env
