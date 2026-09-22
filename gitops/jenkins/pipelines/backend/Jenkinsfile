@@ -44,8 +44,12 @@ pipeline {
 
                     env.IMAGE_TAG = "${env.ENVIRONMENT}-${env.GIT_SHORT_SHA}"
 
+                    // Spring profile은 ENVIRONMENT(prod/develop)와 이름이 달라서 따로 매핑한다.
+                    env.SPRING_PROFILE = (env.ENVIRONMENT == 'prod') ? 'prod' : 'dev'
+
                     echo "Git Commit SHA: ${env.GIT_SHORT_SHA}"
                     echo "Image Tag: ${env.IMAGE_TAG}"
+                    echo "Spring Profile: ${env.SPRING_PROFILE}"
                 }
                 container('builder') {
                     sh '''
@@ -108,6 +112,7 @@ pipeline {
                         /kaniko/executor \
                           --context=`pwd` \
                           --dockerfile=`pwd`/${DOCKERFILE_PATH} \
+                          --build-arg SPRING_PROFILES_ACTIVE=${SPRING_PROFILE} \
                           --destination=${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}
                     """
                 }
@@ -158,6 +163,15 @@ pipeline {
                             chmod +x /usr/local/bin/yq
 
                             yq -i ".image.tag = \"${IMAGE_TAG}\"" "$OVERRIDE_FILE"
+
+                            # 이미 같은 태그라 실제로 바뀐 게 없으면 커밋할 게 없어서
+                            # git commit이 실패(exit 1)한다. set -e 때문에 그대로 두면
+                            # 파이프라인 전체가 실패로 떨어지므로, 여기서 먼저 확인하고
+                            # 변경이 없으면 조용히 정상 종료한다.
+                            if git diff --quiet -- "$OVERRIDE_FILE"; then
+                                echo "이미지 태그가 이미 ${IMAGE_TAG}입니다. GitOps 업데이트가 필요 없습니다."
+                                exit 0
+                            fi
 
                             git config user.name "jenkins-ci"
                             git config user.email "jenkins-ci@moongcheap.local"
