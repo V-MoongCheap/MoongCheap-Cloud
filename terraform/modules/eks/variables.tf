@@ -179,9 +179,14 @@ variable "fe_max_size" {
 # DEC-1: BE·AI가 Karpenter(동적 노드)로 바뀌면서 ArgoCD·Karpenter Controller·Jenkins
 # Controller처럼 항상 떠있어야 하는 시스템 워크로드가 붙을 고정 자리가 없어졌다.
 # FE에 얹으면(대안 (b)) 사용자 트래픽과 클러스터 운영 워크로드가 자원을 두고 경합하므로,
-# 별도 System Node Group을 신설한다(대안 (a), 채택). t3.medium 1대(allocatable ~3.4GiB)로는
-# ArgoCD(~6 Pod)+Karpenter Controller(2 Pod, 권장 1Gi×2)+Jenkins Controller만으로도
-# 부족해 2대로 시작한다(추정 — 실측 후 조정).
+# 별도 System Node Group을 신설한다(대안 (a), 채택). t3.medium은 CPU/메모리가 아니라
+# ENI 기반 max-pods 한도(17개/노드)가 먼저 병목이었다 — 2026-09-22 실측: 2대(34슬롯)가
+# daemonset(aws-node/kube-proxy/ebs-csi-node/alloy-logs/alloy-metrics, 노드당 5개) +
+# ArgoCD·Karpenter Controller·cloudflared·Envoy Gateway·External Secrets·모니터링 스택으로
+# 이미 꽉 차서 argocd-server·jenkins-0이 Pending(FailedScheduling: Too many pods)이었음.
+# 스펙업(t3.medium→t3.large 등)은 기존 2대를 롤링 교체해야 해서 그 위에 떠있는
+# Karpenter Controller·cloudflared·Envoy Gateway까지 같이 흔들리므로, 무중단인 노드
+# 추가(3대)를 택함 — 새 노드는 daemonset 5개를 빼도 12슬롯 여유(현재 부족분 2개 대비 충분).
 variable "system_instance_type" {
   type        = string
   description = "System Worker Node Group 인스턴스 타입 (ArgoCD/Karpenter Controller/Jenkins Controller)"
@@ -191,7 +196,7 @@ variable "system_instance_type" {
 variable "system_desired_size" {
   type        = number
   description = "System Worker Node Group desired size"
-  default     = 2
+  default     = 3
 }
 
 variable "system_min_size" {
@@ -203,5 +208,5 @@ variable "system_min_size" {
 variable "system_max_size" {
   type        = number
   description = "System Worker Node Group max size"
-  default     = 2
+  default     = 3
 }
