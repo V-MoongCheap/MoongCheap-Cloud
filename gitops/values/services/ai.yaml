@@ -1,20 +1,44 @@
 nameOverride: ai
 
+workload:
+  kind: Deployment
+
 image:
   repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/ai"
+  pullPolicy: IfNotPresent
 
-containerPort: 8000
+containerPort: 8081
 
 service:
+  enabled: true
+  type: ClusterIP
   port: 80
+  targetPort: http
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false
+
+envFrom:
+  - secretRef:
+      name: ai-env
 
 livenessProbe:
   enabled: false
   path: /health
 
 readinessProbe:
-  enabled: false
+  enabled: true
   path: /health
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
 
 nodeSelector:
   workload: backend-ai

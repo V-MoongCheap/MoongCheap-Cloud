@@ -15,6 +15,7 @@ spec:
           - service: frontend
           - service: backend
           - service: ai
+          - service: ai-demand-clustering
 
   template:
     metadata:
