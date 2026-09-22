@@ -15,8 +15,8 @@ env:
   - name: REDIS_PORT
     value: "6379"
 
-  - name: SPRING_SESSION_DATA_REDIS_CONFIGURE_ACTION
-    value: "none"
+  # - name: SPRING_SESSION_DATA_REDIS_CONFIGURE_ACTION
+  #   value: "none"
 
 envFrom:
   - secretRef:
