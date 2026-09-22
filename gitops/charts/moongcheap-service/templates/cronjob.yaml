@@ -82,6 +82,11 @@ spec:
                 {{- toYaml . | nindent 16 }}
               {{- end }}
 
+              {{- with .Values.cronjob.args }}
+              args:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              
               envFrom:
                 - configMapRef:
                     name: {{ .Values.cronjob.configMapName }}

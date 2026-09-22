@@ -1,0 +1,71 @@
+nameOverride: ai-awarding
+
+workload:
+  kind: CronJob
+
+image:
+  repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/ai"
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: false
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false
+
+cronjob:
+  schedule: "*/1 * * * *"
+  timeZone: Asia/Seoul
+
+  suspend: true
+  concurrencyPolicy: Forbid
+
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+
+  serviceAccountName: ai-awarding-sa
+  configMapName: ai-awarding-config
+
+  args:
+    - --backend-url
+    - http://backend
+
+    - --shipping-fee-unit
+    - PER_BOARD
+
+    - --price-cap-basis
+    - UNIT_PRICE
+
+  config:
+    BACKEND_BASE_URL: "http://backend"
+
+envFrom:
+  - secretRef:
+      name: ai-env
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector:
+  workload: backend-ai
+  kubernetes.io/os: linux
+  kubernetes.io/arch: amd64
+
+tolerations: []
