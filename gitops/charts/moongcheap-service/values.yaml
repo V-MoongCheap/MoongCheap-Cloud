@@ -56,6 +56,20 @@ autoscaling:
   minReplicas: 1
   maxReplicas: 3
   targetCPUUtilizationPercentage: 70
+metrics:
+  enabled: false
+  path: /metrics
+  interval: 15s
+
+keda:
+  enabled: false
+  minReplicaCount: 1
+  maxReplicaCount: 5
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced: {}
+  triggers: []
+
 
 pdb:
   enabled: false
