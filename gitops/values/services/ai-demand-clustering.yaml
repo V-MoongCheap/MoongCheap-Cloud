@@ -1,0 +1,124 @@
+nameOverride: ai-demand-clustering
+
+# Workload
+workload:
+  kind: CronJob
+
+# Image
+image:
+  repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/ai"
+  pullPolicy: IfNotPresent
+
+# Deployment 전용 기능 비활성화
+service:
+  enabled: false
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false
+
+# CronJob
+cronjob:
+  schedule: "45 * * * *"
+  timeZone: Asia/Seoul
+
+  suspend: true
+  concurrencyPolicy: Forbid
+
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+
+  serviceAccountName: demand-clustering-sa
+  configMapName: demand-clustering-config
+
+  command:
+    - demand-clustering-batch
+
+  config:
+    BACKEND_BASE_URL: "http://backend"
+
+    MFDS_CATALOG_PROFILES_PATH: "/artifacts/catalog_profiles.csv"
+
+    DEMAND_TAXONOMY_PATH: "/artifacts/taxonomy.json"
+
+    DEMAND_CONSTRAINT_RULES_PATH: "/app/config/demand_constraint_rules.json"
+
+    DEMAND_CONSTRAINT_ALIASES_PATH: "/app/config/model1_aliases_reviewed_v2.json"
+
+    DEMAND_CONSTRAINT_COMPAT_ALIASES_PATH: "/app/config/demand_constraint_aliases.json"
+
+    E5_MODEL_PATH: "/models/multilingual-e5-small"
+
+    E5_BATCH_SIZE: "32"
+
+    CLUSTER_MIN_PARTICIPANTS: "5"
+
+    BACKEND_HTTP_TIMEOUT_SECONDS: "15"
+
+    POSTGRES_CONNECT_TIMEOUT_SECONDS: "10"
+
+    OMP_NUM_THREADS: "1"
+
+    MKL_NUM_THREADS: "1"
+
+    TOKENIZERS_PARALLELISM: "false"
+
+    HF_HUB_OFFLINE: "1"
+
+    TRANSFORMERS_OFFLINE: "1"
+
+    HF_HOME: "/tmp/huggingface"
+
+# Secret
+env:
+  - name: DB_URL
+    valueFrom:
+      secretKeyRef:
+        name: backend-env
+        key: DB_URL
+
+  - name: DB_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: backend-env
+        key: DB_USERNAME
+
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: backend-env
+        key: DB_PASSWORD
+
+  - name: BACKEND_INTERNAL_KEY
+    valueFrom:
+      secretKeyRef:
+        name: backend-env
+        key: MOONGCHEAP_INTERNAL_API_KEY
+
+# Resources
+resources:
+  requests:
+    cpu: "1"
+    memory: 3Gi
+
+  limits:
+    cpu: "2"
+    memory: 4Gi
+
+# Scheduling
+nodeSelector:
+  workload: backend-ai
+  kubernetes.io/os: linux
+  kubernetes.io/arch: amd64
+
+tolerations: []

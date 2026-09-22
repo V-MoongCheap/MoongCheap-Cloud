@@ -1,0 +1,78 @@
+nameOverride: ai-labeling
+
+workload:
+  kind: CronJob
+
+image:
+  repository: "840851421204.dkr.ecr.ap-northeast-2.amazonaws.com/moongcheap/ai"
+  pullPolicy: IfNotPresent
+
+service:
+  enabled: false
+
+ingress:
+  enabled: false
+
+autoscaling:
+  enabled: false
+
+pdb:
+  enabled: false
+
+cronjob:
+  schedule: "15 * * * *"
+  timeZone: Asia/Seoul
+
+  suspend: true
+  concurrencyPolicy: Forbid
+
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+
+  backoffLimit: 0
+  activeDeadlineSeconds: 1800
+  ttlSecondsAfterFinished: 86400
+
+  serviceAccountName: a-labeling-job
+  configMapName: a-labeling-config
+
+  command:
+    - a-labeling-batch
+    - --write-db
+    - --output
+    - /tmp/a-labeling-output.csv
+
+  config:
+    A_ALIAS_REGISTRY_PATH: "/app/config/model1_aliases_reviewed_v2.json"
+
+    A_BACKEND_HTTP_TIMEOUT_SECONDS: "15"
+
+    A_MODEL2_FALLBACK_ENABLED: "false"
+    A_MODEL2_FALLBACK_MODEL: "qwen2.5:7b-instruct"
+    A_MODEL2_OLLAMA_BASE_URL: "http://ollama:11434"
+    A_MODEL2_FALLBACK_TIMEOUT_SECONDS: "300"
+    A_MODEL2_FALLBACK_BATCH_SIZE: "5"
+
+env:
+  - name: A_DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: ai-labeling-database
+        key: url
+
+resources:
+  requests:
+    cpu: "1"
+    memory: 2Gi
+
+  limits:
+    cpu: "2"
+    memory: 3Gi
+
+nodeSelector:
+  workload: backend-ai
+  kubernetes.io/os: linux
+  kubernetes.io/arch: amd64
+
+tolerations: []

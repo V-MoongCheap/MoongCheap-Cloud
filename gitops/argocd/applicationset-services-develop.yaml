@@ -15,7 +15,10 @@ spec:
           - service: frontend
           - service: backend
           - service: ai
-
+          - service: ai-demand-clustering
+          - service: ai-labeling
+          - service: ai-awarding
+          
   template:
     metadata:
       name: "moongcheap-{{ .service }}-develop"

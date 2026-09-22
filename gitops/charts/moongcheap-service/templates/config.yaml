@@ -1,0 +1,15 @@
+{{- if eq .Values.workload.kind "CronJob" }}
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: {{ .Values.cronjob.configMapName }}
+  labels:
+    {{- include "moongcheap-service.labels" . | nindent 4 }}
+    app.kubernetes.io/component: batch
+
+data:
+  {{- range $key, $value := .Values.cronjob.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}
+{{- end }}

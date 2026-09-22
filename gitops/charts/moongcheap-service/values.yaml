@@ -1,3 +1,6 @@
+workload:
+  kind: Deployment
+
 nameOverride: ""
 fullnameOverride: ""
 
