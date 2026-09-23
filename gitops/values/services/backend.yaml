@@ -33,6 +33,12 @@ env:
   - name: OPENSEARCH_SCHEME
     value: "https"
 
+  # D-65: 기본값이 false라 결제 Outbox 발행·큐 워커·복구 스케줄러 3종이
+  # @ConditionalOnProperty에 걸려 아예 생성되지 않는다. 공동구매 낙찰 후
+  # 자동 결제가 실행되려면 켜야 한다(주문만 쌓이고 결제는 영원히 안 나감).
+  - name: PAYMENT_QUEUE_ENABLED
+    value: "true"
+
 envFrom:
   - secretRef:
       name: backend-env
