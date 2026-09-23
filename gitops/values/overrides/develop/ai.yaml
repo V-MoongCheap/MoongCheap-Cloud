@@ -1,2 +1,36 @@
 image:
   tag: "develop"
+
+
+autoscaling:
+  enabled: false   # KEDA가 자체 HPA 생성
+
+metrics:
+  enabled: true
+  path: /metrics
+
+keda:
+  enabled: true
+  minReplicaCount: 1     # BE보다 보수적으로 시작 — 부하테스트 후 조정
+  maxReplicaCount: 4
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+  triggers:
+    - serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+      query: 'sum(rate(http_requests_total{service="ai", namespace="moongcheap-develop", path!="/health"}[1m]))'
+      threshold: "20"   # placeholder — BE와 마찬가지로 부하테스트 후 확정
