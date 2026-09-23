@@ -57,6 +57,10 @@ CRON_BACKUP_DIR="${HOME}/.moongcheap/crontab-backup"
 WAIT_INTERVAL=15   # 초
 WAIT_TIMEOUT=900   # 초 (노드 join/종료는 보통 3~5분)
 
+# Close 시 Managed Node Group 인스턴스가 스스로 내려가기를 기다리는 시간(초).
+# 이 시간을 넘기면 남은 인스턴스를 EC2 API로 강제 종료한다 — 아래 wait_nodegroup_drained 참고.
+DRAIN_GRACE=180
+
 SCRIPT_NAME="$(basename "${0:-common.sh}")"
 _STARTED_AT="$(date +%s)"
 
@@ -299,6 +303,50 @@ _nodegroup_count_is() {
   [[ "$(nodegroup_running_count "$1")" == "$2" ]]
 }
 
+# nodegroup_instance_ids <이름> — 해당 Node Group의 pending/running 인스턴스 ID (줄바꿈 구분)
+nodegroup_instance_ids() {
+  aws ec2 describe-instances \
+    --filters "Name=tag:eks:cluster-name,Values=${EKS_CLUSTER_NAME}" \
+              "Name=tag:eks:nodegroup-name,Values=$1" \
+              "Name=instance-state-name,Values=pending,running" \
+    --query 'Reservations[].Instances[].InstanceId' --output text | tr '\t' '\n' | sed '/^$/d'
+}
+
+# wait_nodegroup_drained <이름>  (Close 전용)
+#   desired=0 요청 뒤 인스턴스가 0대가 되기를 기다리되, DRAIN_GRACE 안에 안 끝나면
+#   남은 인스턴스를 EC2 API로 강제 종료한다.
+#
+#   왜 필요한가: Managed Node Group 축소는 Pod를 graceful하게 evict하는데,
+#   PodDisruptionBudget이 마지막 Pod의 퇴거를 막으면 영구히 진행되지 않는다.
+#   실제로 2026-09-24 Close에서 이 교착이 발생했다 —
+#     · Karpenter 컨트롤러는 nodeAffinity로 system 노드에만 뜬다
+#     · system-ng와 fe-ng를 동시에 0으로 내리면서 마지막 replica가 fe 노드에 남았고
+#     · 대체 replica는 뜰 system 노드가 없어 Pending
+#     · karpenter PDB(maxUnavailable=1)의 ALLOWED DISRUPTIONS가 0이 되어 퇴거 불가
+#     · fe 노드가 SchedulingDisabled인 채로 종료되지 않음 → 스크립트가 무한 대기
+#   Close는 어차피 Compute를 전부 내리는 작업이라 graceful 종료에 미련을 둘 이유가 없다.
+#   (Open 경로는 이 함수를 쓰지 않는다 — 노드가 올라오길 기다리는 것은 강제할 대상이 아니다.)
+wait_nodegroup_drained() {
+  local ng="$1" deadline ids
+  deadline=$(( $(date +%s) + DRAIN_GRACE ))
+  while ! _nodegroup_count_is "${ng}" 0; do
+    if (( $(date +%s) >= deadline )); then
+      ids="$(nodegroup_instance_ids "${ng}")"
+      if [[ -z "${ids}" ]]; then break; fi
+      warn "${ng}: ${DRAIN_GRACE}s 안에 드레인이 끝나지 않음 — 남은 인스턴스를 강제 종료한다"
+      warn "  대상: $(printf '%s ' ${ids})"
+      warn "  (PodDisruptionBudget이 마지막 Pod 퇴거를 막는 경우다. Close는 전부 내리는 작업이라 무방하다)"
+      # shellcheck disable=SC2086
+      aws ec2 terminate-instances --instance-ids ${ids} >/dev/null \
+        || die "${ng}: 강제 terminate 실패 — 콘솔에서 인스턴스를 직접 종료할 것"
+      wait_until "${ng} 실행 인스턴스 0대(강제 종료 후)" _nodegroup_count_is "${ng}" 0
+      return 0
+    fi
+    sleep "${WAIT_INTERVAL}"
+  done
+  info "확인: ${ng} 실행 인스턴스 0대"
+}
+
 # request_nodegroup_scale <이름> <목표 desired>
 #   API 호출만 하고 기다리지 않는다. 이미 목표값이면 호출 없이 통과(idempotent).
 #   return 0 = 요청됨/이미 목표, 2 = Node Group 없음(건너뜀), 그 외 = die
@@ -355,7 +403,14 @@ scale_managed_nodegroups() {
     pending+=("${ng}=${target}")
   done
   for entry in ${pending[@]+"${pending[@]}"}; do
-    wait_nodegroup_scaled "${entry%%=*}" "${entry##*=}"
+    ng="${entry%%=*}"; target="${entry##*=}"
+    if [[ "${mode}" == "close" ]]; then
+      # PDB 교착을 대비해 DRAIN_GRACE 후 강제 종료까지 한다.
+      wait_nodegroup_drained "${ng}"
+      wait_until "${ng} ACTIVE" _nodegroup_is_active "${ng}"
+    else
+      wait_nodegroup_scaled "${ng}" "${target}"
+    fi
   done
 }
 
