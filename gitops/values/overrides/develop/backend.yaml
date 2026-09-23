@@ -1,2 +1,36 @@
 image:
   tag: "develop-89a4935"
+
+
+autoscaling:
+  enabled: false   # KEDA가 자체 HPA를 생성하므로 기존 plain HPA는 끈다
+
+metrics:
+  enabled: true
+  path: /actuator/prometheus
+
+keda:
+  enabled: true
+  minReplicaCount: 2
+  maxReplicaCount: 8
+  pollingInterval: 15
+  cooldownPeriod: 300
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 0     # 마감 직전 급증 시 즉시 반응
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 15
+        scaleDown:
+          stabilizationWindowSeconds: 300   # 급증 끝난 뒤 바로 줄이지 않고 5분 관찰
+          policies:
+            - type: Pods
+              value: 1
+              periodSeconds: 60
+  triggers:
+    - serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090   # 배포 후 kubectl get svc -n monitoring 으로 실제 서비스명 검증 필요
+      query: 'sum(rate(http_server_requests_seconds_count{service="backend"}[1m]))'  # BE가 curl로 실제 메트릭명/라벨 확인해주면 교체
+      threshold: "50"   # k6 부하테스트로 확정 예정 (지금은 placeholder)
