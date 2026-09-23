@@ -81,19 +81,19 @@ controller:
                         image: "eclipse-temurin:25-jdk"
                         command: "cat"
                         ttyEnabled: true
-                        resourceRequestCpu: "1"
+                        resourceRequestCpu: "700m"
                         resourceRequestMemory: "2Gi"
                       - name: "kaniko"
                         image: "gcr.io/kaniko-project/executor:v1.23.2-debug"
                         command: "cat"
                         ttyEnabled: true
-                        resourceRequestCpu: "500m"
+                        resourceRequestCpu: "300m"
                         resourceRequestMemory: "1Gi"
                       - name: "security"
                         image: "python:3.11-slim"
                         command: "cat"
                         ttyEnabled: true
-                        resourceRequestCpu: "500m"
+                        resourceRequestCpu: "300m"
                         resourceRequestMemory: "1Gi"
                   - name: "python-builder"
                     label: "python-builder"
