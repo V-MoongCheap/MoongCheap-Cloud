@@ -147,7 +147,7 @@ variable "eso_service_account_name" {
 variable "jenkins_namespace" {
   type        = string
   description = "Jenkins가 설치된 Kubernetes Namespace"
-  default     = "infra"
+  default     = "jenkins"
 }
 
 variable "jenkins_service_account_name" {
