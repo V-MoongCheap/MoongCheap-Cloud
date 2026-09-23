@@ -210,3 +210,12 @@ variable "system_max_size" {
   description = "System Worker Node Group max size"
   default     = 3
 }
+
+# D-59: Prefix Delegation(addons.tf vpc-cni)과 반드시 짝으로 움직인다. 이 값만 올리면
+# IP가 모자라 Pod가 안 뜨고, Prefix Delegation만 켜면 kubelet 한도가 17에 묶인다.
+# 110은 EKS AMI가 vCPU 32 미만 인스턴스에 두는 상한이라 그 이상으로 올려도 의미가 없다.
+variable "system_max_pods" {
+  type        = number
+  description = "System Worker Node Group 노드 1대당 최대 Pod 수 (Prefix Delegation 전제, EKS 상한 110)"
+  default     = 110
+}
