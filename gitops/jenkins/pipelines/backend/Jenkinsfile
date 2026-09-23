@@ -82,6 +82,33 @@ pipeline {
             agent {
                 kubernetes {
                     inheritFrom 'java-builder'
+                    yaml '''
+                      apiVersion: v1
+                      kind: Pod
+                      spec:
+                        containers:
+                          - name: dind
+                            image: docker:27.5.1-dind
+                            command:
+                              - dockerd
+                            args:
+                              - --host=unix:///var/run/docker.sock
+                              - --host=tcp://127.0.0.1:2375
+                              - --tls=false
+                            securityContext:
+                              privileged: true
+                            resources:
+                              requests:
+                                cpu: "200m"
+                                memory: "512Mi"
+                            volumeMounts:
+                              - name: docker-data
+                                mountPath: /var/lib/docker
+
+                        volumes:
+                          - name: docker-data
+                            emptyDir: {}
+                        '''
                 }
             }
 
@@ -89,12 +116,43 @@ pipeline {
                 unstash 'build-output'
 
                 container('builder') {
-                    sh '''
-                        set -eu
+                    withEnv([
+                        'DOCKER_HOST=tcp://127.0.0.1:2375',
+                        'TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock'
+                    ]) {
+                        sh '''
+                            set -eu
 
-                        chmod +x gradlew
-                        ./gradlew test --no-daemon
-                    '''
+                            export TESTCONTAINERS_HOST_OVERRIDE="$(hostname -i | awk '{print $1}')"
+
+                            echo "Docker Engine 연결 확인"
+                            echo "Testcontainers Host: $TESTCONTAINERS_HOST_OVERRIDE"
+
+                            READY=0
+
+                            for i in $(seq 1 60); do
+                                if curl -fsS --max-time 2 \
+                                  http://127.0.0.1:2375/_ping 2>/dev/null \
+                                  | grep -q OK; then
+
+                                    READY=1
+                                    break
+                                fi
+
+                                sleep 2
+                            done
+
+                            if [ "$READY" -ne 1 ]; then
+                                echo "Docker Engine 연결 실패"
+                                exit 1
+                            fi
+
+                            echo "Docker Engine 연결 성공"
+
+                            chmod +x gradlew
+                            ./gradlew test --no-daemon
+                        '''
+                    }
                 }
             }
         }
@@ -460,7 +518,6 @@ pipeline {
                             # ----------------------------------------
 
                             GITOPS_API_REPO="${REPO_HOST#github.com/}"
-
                             GITOPS_API_REPO="${GITOPS_API_REPO%.git}"
 
                             PR_TITLE="ci(gitops): update ${SERVICE_NAME} image tag to ${IMAGE_TAG}"
@@ -471,13 +528,60 @@ pipeline {
                               "$BRANCH_NAME" \
                               "$BASE_BRANCH")"
 
-                            curl --fail-with-body \
+                            PR_RESPONSE="$(curl --fail-with-body \
                               -sS \
                               -X POST \
                               -H "Authorization: Bearer ${GIT_TOKEN}" \
                               -H 'Accept: application/vnd.github+json' \
                               "https://api.github.com/repos/${GITOPS_API_REPO}/pulls" \
-                              -d "$PR_JSON"
+                              -d "$PR_JSON")"
+
+                            # PR 번호 및 GraphQL ID 추출
+                            PR_NUMBER="$(printf '%s' "$PR_RESPONSE" | node -pe \
+                              'JSON.parse(require("fs").readFileSync(0, "utf8")).number')"
+
+                            PR_NODE_ID="$(printf '%s' "$PR_RESPONSE" | node -pe \
+                              'JSON.parse(require("fs").readFileSync(0, "utf8")).node_id')"
+
+                            echo "GitOps PR 생성 완료: #${PR_NUMBER}"
+
+                            # ----------------------------------------
+                            # develop 대상 Jenkins PR만 Auto-merge
+                            # ----------------------------------------
+
+                            if [ "$BASE_BRANCH" = "develop" ]; then
+
+                                echo "develop 대상 PR Auto-merge 활성화"
+
+                                GRAPHQL_QUERY="$(printf \
+                                  '{"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\"%s\\", mergeMethod: SQUASH}) { pullRequest { number autoMergeRequest { enabledAt } } } }"}' \
+                                  "$PR_NODE_ID")"
+
+                                MERGE_RESPONSE="$(curl --fail-with-body \
+                                  -sS \
+                                  -X POST \
+                                  -H "Authorization: Bearer ${GIT_TOKEN}" \
+                                  -H 'Accept: application/vnd.github+json' \
+                                  "https://api.github.com/graphql" \
+                                  -d "$GRAPHQL_QUERY")"
+
+                                printf '%s' "$MERGE_RESPONSE" | node -e '
+                                  const fs = require("fs");
+                                  const result = JSON.parse(fs.readFileSync(0, "utf8"));
+
+                                  if (result.errors || !result.data?.enablePullRequestAutoMerge?.pullRequest?.autoMergeRequest) {
+                                    console.error(JSON.stringify(result));
+                                    process.exit(1);
+                                  }
+                                '
+
+                                echo "Auto-merge 활성화 완료: PR #${PR_NUMBER}"
+
+                            else
+
+                                echo "main 대상 PR은 수동 Merge 유지"
+
+                            fi
                         '''
                     }
                 }
@@ -485,37 +589,37 @@ pipeline {
         }
     }
 
-    post {
-        always {
-            script {
-                try {
-                    withCredentials([
-                        string(
-                            credentialsId: 'discord-webhook-ci',
-                            variable: 'DISCORD_WEBHOOK'
-                        )
-                    ]) {
-                        discordSend(
-                            webhookURL: env.DISCORD_WEBHOOK,
-                            title: "Backend CI #${env.BUILD_NUMBER}",
-                            description: "서비스: Backend / 결과: ${currentBuild.currentResult} / 브랜치: ${env.BRANCH_NAME ?: '확인 불가'} / 환경: ${env.ENVIRONMENT ?: '미설정'} / 태그: ${env.IMAGE_TAG ?: '미생성'}",
-                            link: env.BUILD_URL,
-                            result: currentBuild.currentResult,
-                            footer: 'MoongCheap Backend CI (배포 완료 알림 아님)'
-                        )
-                    }
-                } catch (Exception e) {
-                    echo 'Discord CI 알림 전송 실패 — Jenkins Credentials와 Plugin 설정 확인'
+post {
+    always {
+        script {
+            try {
+                withCredentials([
+                    string(
+                        credentialsId: 'discord-webhook-ci',
+                        variable: 'DISCORD_WEBHOOK'
+                    )
+                ]) {
+                    discordSend(
+                        webhookURL: env.DISCORD_WEBHOOK,
+                        title: "Backend CI #${env.BUILD_NUMBER}",
+                        description: "결과: ${currentBuild.currentResult}",
+                        result: currentBuild.currentResult
+                    )
                 }
+
+                echo 'Discord CI 알림 전송 완료'
+
+            } catch (Exception e) {
+                echo "Discord CI 알림 전송 실패: ${e.getClass().getSimpleName()}"
             }
         }
+    }
 
-        success {
-            echo "Backend CI 완료: ${ECR_REPO}:${IMAGE_TAG}. GitOps PR Merge 후 ArgoCD Sync 진행."
-        }
+    success {
+        echo "Backend CI 완료: ${ECR_REPO}:${IMAGE_TAG}. GitOps PR Merge 후 ArgoCD Sync 진행."
+    }
 
-        failure {
-            echo 'Backend CI 실패 — Jenkins 로그에서 실패 Stage 확인 필요.'
-        }
+    failure {
+        echo 'Backend CI 실패 — Jenkins 로그에서 실패 Stage 확인 필요.'
     }
 }
