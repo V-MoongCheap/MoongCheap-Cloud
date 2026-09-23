@@ -11,7 +11,15 @@ service:
   
 controller:
   type: daemonset
-
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: workload
+                operator: NotIn
+                values:
+                  - system
 alloy:
   configMap:
     content: |
