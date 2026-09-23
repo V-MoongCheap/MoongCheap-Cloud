@@ -19,10 +19,10 @@ env:
   #   value: "none"
 
   - name: ALLOWED_ORIGINS
-    value: "https://moongcheap.shop/"
+    value: "https://moongcheap.shop"
 
   - name: OAUTH_REDIRECT_BASE_URL
-    value: "https://moongcheap.shop/"
+    value: "https://moongcheap.shop"
 
 envFrom:
   - secretRef:
