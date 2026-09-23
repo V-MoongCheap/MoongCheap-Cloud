@@ -28,6 +28,7 @@ controller:
     - configuration-as-code:latest
     - credentials-binding:latest
     - pipeline-utility-steps:latest
+    - discord-notifier:latest
 
   JCasC:
     configScripts:
@@ -81,6 +82,12 @@ controller:
                         ttyEnabled: true
                         resourceRequestCpu: "500m"
                         resourceRequestMemory: "1Gi"
+                      - name: "security"
+                        image: "python:3.11-slim"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
                   - name: "python-builder"
                     label: "python-builder"
                     namespace: "jenkins"
@@ -118,7 +125,7 @@ serviceAccount:
   create: true
   name: jenkins-sa
   annotations:
-    eks.amazonaws.com/role-arn: arn:aws:iam::840851421204:role/moongcheap-jenkins-role   # [배포 후 기입]
+    eks.amazonaws.com/role-arn: arn:aws:iam::840851421204:role/moongcheap-develop-jenkins-role 
 
 persistence:
   enabled: true
