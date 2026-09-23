@@ -31,6 +31,6 @@ keda:
               value: 1
               periodSeconds: 60
   triggers:
-    - serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090   # 배포 후 kubectl get svc -n monitoring 으로 실제 서비스명 검증 필요
-      query: 'sum(rate(http_server_requests_seconds_count{service="backend"}[1m]))'  # BE가 curl로 실제 메트릭명/라벨 확인해주면 교체
+    - serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
+      query: 'sum(rate(http_server_requests_seconds_count{service="backend", namespace="moongcheap-develop", uri!="/actuator/health"}[1m]))'
       threshold: "50"   # k6 부하테스트로 확정 예정 (지금은 placeholder)
