@@ -24,7 +24,7 @@ loki:
           prefix: index_
           period: 24h
   limits_config:
-    retention_period: 72h # 3일. 필요에 맞게 조정
+    retention_period: 24h # 3일. 필요에 맞게 조정
   compactor:
     retention_enabled: true
     delete_request_store: filesystem
