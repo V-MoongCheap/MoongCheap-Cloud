@@ -31,6 +31,8 @@ controller:
     - discord-notifier:latest
 
   JCasC:
+    defaultConfig: false
+    
     configScripts:
       dynamic-agents: |
         jenkins:
