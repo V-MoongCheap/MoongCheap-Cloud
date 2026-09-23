@@ -65,6 +65,12 @@ controller:
                         ttyEnabled: true
                         resourceRequestCpu: "500m"
                         resourceRequestMemory: "1Gi"
+                      - name: "security"
+                        image: "python:3.11-slim"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
                   - name: "java-builder"
                     label: "java-builder"
                     namespace: "jenkins"
