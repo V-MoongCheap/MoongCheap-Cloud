@@ -24,6 +24,15 @@ env:
   - name: OAUTH_REDIRECT_BASE_URL
     value: "https://moongcheap.shop"
 
+  - name: OPENSEARCH_HOST
+    value: "vpc-moongcheap-develop-os-itmwuyj5rkawx3pebp7ftspbau.ap-northeast-2.es.amazonaws.com"
+
+  - name: OPENSEARCH_PORT
+    value: "443"
+
+  - name: OPENSEARCH_SCHEME
+    value: "https"
+
 envFrom:
   - secretRef:
       name: backend-env
