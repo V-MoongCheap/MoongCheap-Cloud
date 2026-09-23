@@ -26,3 +26,44 @@ dex:
 notifications:
   nodeSelector:
     workload: system
+  notifiers:
+    service.webhook.discord: |
+      url: $discord-webhook-url
+      headers:
+      - name: Content-Type
+        value: application/json
+  templates:
+    template.app-sync-succeeded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "✅ **[{{.app.metadata.name}}]** 배포 성공\n환경: `{{.app.spec.destination.namespace}}`"}
+    template.app-sync-failed: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "❌ **[{{.app.metadata.name}}]** 배포 실패\n환경: `{{.app.spec.destination.namespace}}`\n자세한 내용은 ArgoCD에서 확인해주세요."}
+    template.app-health-degraded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "⚠️ **[{{.app.metadata.name}}]** Health Degraded 감지\n환경: `{{.app.spec.destination.namespace}}`"}
+  triggers:
+    trigger.on-sync-succeeded: |
+      - description: Application syncing has succeeded
+        send:
+        - app-sync-succeeded
+        when: app.status.operationState.phase in ['Succeeded']
+    trigger.on-sync-failed: |
+      - description: Application syncing has failed
+        send:
+        - app-sync-failed
+        when: app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: Application has degraded
+        send:
+        - app-health-degraded
+        when: app.status.health.status == 'Degraded' 
