@@ -58,6 +58,12 @@ readinessProbe:
 nodeSelector:
   workload: backend-ai
 
+# 임시 조치(QA·발표 기간): Karpenter consolidation이 이 Pod가 있는 노드를 정리하지 않게 한다.
+# Jenkins 빌드 Pod가 be-ai 노드를 늘렸다가 줄일 때 replicas 1인 이 Pod가 축출돼 서비스가 끊겼다(D-68).
+# replicas 2 + PDB가 들어가면 제거한다.
+podAnnotations:
+  karpenter.sh/do-not-disrupt: "true"
+
 resources:
   requests:
     cpu: 250m
