@@ -58,11 +58,26 @@ readinessProbe:
 nodeSelector:
   workload: backend-ai
 
-# 임시 조치(QA·발표 기간): Karpenter consolidation이 이 Pod가 있는 노드를 정리하지 않게 한다.
-# Jenkins 빌드 Pod가 be-ai 노드를 늘렸다가 줄일 때 replicas 1인 이 Pod가 축출돼 서비스가 끊겼다(D-68).
-# replicas 2 + PDB가 들어가면 제거한다.
-podAnnotations:
-  karpenter.sh/do-not-disrupt: "true"
+# 노드 정리·재배포 중에도 끊기지 않게 2개를 유지한다(D-68).
+# - PDB minAvailable 1: Karpenter가 노드를 비울 때 한 번에 하나만 축출하고,
+#   새 Pod가 Ready가 된 뒤에 나머지를 뺀다. 두 Pod가 같은 노드에 있어도 무중단.
+# - anti-affinity(preferred): 가능하면 서로 다른 노드에 둬 노드 장애에도 하나는 남긴다.
+#   required로 하면 롤링 업데이트 때 세 번째 노드가 필요해져 preferred로 둔다.
+replicaCount: 2
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
 
 resources:
   requests:
