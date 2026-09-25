@@ -1,0 +1,58 @@
+# be-ai NodePool 선제 스케일아웃용 오버프로비저닝 Placeholder.
+#
+# 배경: AI 정기 배치(Labeling/Clustering, 매시 15분·45분)가 be-ai 노드에 여유가 없을 때
+# 뜨면 Karpenter가 새 노드를 띄우는 동안(EC2 기동+join, 1~3분) 콜드스타트가 생긴다.
+# 이 Placeholder는 그 여유분을 미리 점유하고 있다가, 실제로 더 우선순위 높은 파드
+# (Backend/AI API/배치 파드 — 전부 기본 우선순위 0)가 뜨려고 하면 스케줄러가 이 파드를
+# 먼저 쫓아내고 그 자리를 내준다. 즉 콜드스타트를 Placeholder가 대신 떠안는 구조다.
+#
+# 적용 전 확인 필요
+#   1. requests 값은 PR #60(gitops/values/services/ai-*.yaml)에서 확정된 AI 배치 3종
+#      실측치 중 제일 큰 Demand Clustering 기준(cpu 1 / memory 3Gi, limit 2 / 4Gi)으로
+#      반영함. Labeling(cpu 1 / memory 2Gi)·Awarding(100m / 128Mi)은 이보다 작아 이 값
+#      하나로 셋 다 커버됨. PR #60의 배치 CronJob은 아직 suspend: true 상태.
+#   2. moongcheap-service 차트에 Job/CronJob 템플릿이 생기고 배치가 실제로 돌기 시작한 뒤,
+#      콜드스타트가 실측으로 확인되면 그때 이 리소스를 develop에 머지
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: overprovisioning
+value: -10
+globalDefault: false
+description: >-
+  be-ai NodePool 오버프로비저닝 Placeholder 전용. Backend/AI API/배치 파드는
+  기본 우선순위(0)를 그대로 쓰므로 전부 이 값보다 높아 언제든 이 Placeholder를
+  선점(preempt)할 수 있다.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: be-ai-overprovisioning
+  namespace: kube-system
+  labels:
+    app: be-ai-overprovisioning
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: be-ai-overprovisioning
+  template:
+    metadata:
+      labels:
+        app: be-ai-overprovisioning
+    spec:
+      priorityClassName: overprovisioning
+      nodeSelector:
+        workload: backend-ai
+      # 선점당했을 때 즉시 사라져야 그 자리를 실제 워크로드가 지체 없이 쓸 수 있다.
+      terminationGracePeriodSeconds: 0
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.9
+          resources:
+            requests:
+              cpu: "1"
+              memory: 3Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
