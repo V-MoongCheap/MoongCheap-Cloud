@@ -80,7 +80,7 @@ controller:
                     serviceAccount: "jenkins-sa"
                     containers:
                       - name: "builder"
-                        image: "eclipse-temurin:25-jdk"
+                        image: "gradle:9.5.1-jdk25"
                         command: "cat"
                         ttyEnabled: true
                         resourceRequestCpu: "700m"
@@ -92,7 +92,7 @@ controller:
                         resourceRequestCpu: "300m"
                         resourceRequestMemory: "1Gi"
                       - name: "security"
-                        image: "python:3.11-slim"
+                        image: "python:3.11"
                         command: "cat"
                         ttyEnabled: true
                         resourceRequestCpu: "300m"
