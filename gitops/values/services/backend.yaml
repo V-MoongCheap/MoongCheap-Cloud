@@ -33,6 +33,12 @@ env:
   - name: OPENSEARCH_SCHEME
     value: "https"
 
+  # D-79: ProductIndexInitializer가 @ConditionalOnProperty(opensearch.auto-create-indices)라
+  # 켜지 않으면 기동 시 product_catalog_v1 인덱스·alias를 만들지 않는다(기본값은 local에서만 true).
+  # env 이름은 Spring relaxed binding 규칙대로 '-'를 지우고 '.'만 '_'로.
+  - name: OPENSEARCH_AUTOCREATEINDICES
+    value: "true"
+
   # D-65: 기본값이 false라 결제 Outbox 발행·큐 워커·복구 스케줄러 3종이
   # @ConditionalOnProperty에 걸려 아예 생성되지 않는다. 공동구매 낙찰 후
   # 자동 결제가 실행되려면 켜야 한다(주문만 쌓이고 결제는 영원히 안 나감).
