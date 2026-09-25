@@ -84,19 +84,19 @@ env:
   - name: DB_URL
     valueFrom:
       secretKeyRef:
-        name: backend-env
+        name: ai-clustering-database
         key: DB_URL
 
   - name: DB_USERNAME
     valueFrom:
       secretKeyRef:
-        name: backend-env
+        name: ai-clustering-database
         key: DB_USERNAME
 
   - name: DB_PASSWORD
     valueFrom:
       secretKeyRef:
-        name: backend-env
+        name: ai-clustering-database
         key: DB_PASSWORD
 
   - name: BACKEND_INTERNAL_KEY
