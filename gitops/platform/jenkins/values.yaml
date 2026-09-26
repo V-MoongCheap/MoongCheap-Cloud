@@ -12,13 +12,21 @@ controller:
     repository: "jenkins/jenkins"
     tag: "lts-jdk17"
 
+  # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+  # 실측 max 1169Mi / p95 1045Mi. limit 4Gi는 t3.medium 노드 전체와 같아 사실상 무제한이었다.
   resources:
     requests:
       cpu: "500m"
-      memory: "1Gi"
+      memory: "1200Mi"
     limits:
       cpu: "2"
-      memory: "4Gi"
+      memory: "2Gi"
+  # limit을 4Gi→2Gi로 내리면 JVM 기본 힙(25%)이 1Gi→512Mi로 줄어든다. 50%로 기존 힙(1Gi)을 유지.
+  javaOpts: "-XX:MaxRAMPercentage=50"
+  # 재시작마다 플러그인 ~100개를 미러에서 다시 받느라 기동에 50분 이상 걸렸다(2026-09-26).
+  # 첫 초기화 뒤 $JENKINS_HOME/initialization-completed 가 생기면 이후 재시작은 다운로드를 건너뛴다.
+  # ⚠️ 이후 installPlugins에 추가한 플러그인은 자동 설치되지 않는다 — 그 파일을 지우고 재시작하거나 UI로 설치.
+  initializeOnce: true
 
   installPlugins:
     - kubernetes:latest
@@ -79,12 +87,14 @@ controller:
                     namespace: "jenkins"
                     serviceAccount: "jenkins-sa"
                     containers:
+                      # 2026-09-26 실측(에이전트 Pod 46개): 단계마다 4개 컨테이너 중 하나만 일한다.
+                      # Pod 합계를 가장 무거운 단계(Image: kaniko+security+jnlp ≈ 2.9Gi)에 맞춤.
                       - name: "builder"
                         image: "gradle:9.5.1-jdk25"
                         command: "cat"
                         ttyEnabled: true
                         resourceRequestCpu: "700m"
-                        resourceRequestMemory: "2Gi"
+                        resourceRequestMemory: "1280Mi"   # 실측 max 1292 / p90 1197 (기존 2Gi)
                       - name: "kaniko"
                         image: "gcr.io/kaniko-project/executor:v1.23.2-debug"
                         command: "cat"
@@ -95,8 +105,8 @@ controller:
                         image: "python:3.11"
                         command: "cat"
                         ttyEnabled: true
-                        resourceRequestCpu: "300m"
-                        resourceRequestMemory: "1Gi"
+                        resourceRequestCpu: "100m"        # 스캔 단계 외 대기(p90 3Mi)
+                        resourceRequestMemory: "384Mi"    # 실측 max 569 (기존 1Gi)
                   - name: "python-builder"
                     label: "python-builder"
                     namespace: "jenkins"

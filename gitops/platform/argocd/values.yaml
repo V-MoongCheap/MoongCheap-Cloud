@@ -1,6 +1,13 @@
+# 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+# ⚠️ ArgoCD는 자기 자신을 GitOps로 관리하지 않는다(helm 수동 설치) — 이 파일 변경은 helm upgrade로 반영.
 controller:
   nodeSelector:
     workload: system
+  resources:
+    requests:
+      memory: 512Mi   # application-controller 실측 max 676 / p95 498
+    limits:
+      memory: 1Gi
 
 server:
   nodeSelector:
@@ -10,6 +17,11 @@ server:
 repoServer:
   nodeSelector:
     workload: system
+  resources:
+    requests:
+      memory: 128Mi   # 실측 max 119 / p95 104
+    limits:
+      memory: 256Mi
 
 applicationSet:
   nodeSelector:

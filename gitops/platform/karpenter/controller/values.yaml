@@ -10,9 +10,10 @@ settings:
 
 controller:
   resources:
+    # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
     requests:
       cpu: 250m
-      memory: 256Mi
+      memory: 384Mi   # 실측 max 412 / p95 378 (기존 256Mi)
     limits:
       cpu: 1
       memory: 1Gi
