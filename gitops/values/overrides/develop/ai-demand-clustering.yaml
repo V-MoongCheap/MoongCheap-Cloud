@@ -1,3 +1,3 @@
 image:
-  tag: "demand-clustering-develop-f135c69"
+  tag: "demand-clustering-develop-fcf51d6"
   pullPolicy: Always
