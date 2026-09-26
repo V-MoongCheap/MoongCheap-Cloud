@@ -407,6 +407,29 @@ Managed Node Group 대신 Karpenter가 Pod의 `requests`에 맞춰 EC2를 직접
 
 > **책임 경계**: Karpenter가 필요로 하는 AWS 측 자원(Controller IRSA Role, Node Role, Instance Profile, EKS Access Entry, discovery 태그)은 Terraform `modules/karpenter`가, Karpenter Helm 설치와 NodePool/EC2NodeClass(Kubernetes CR)는 `gitops/platform/karpenter/`가 담당한다(8.6). Karpenter가 띄운 EC2는 Terraform State에 없으므로 **`terraform destroy` 전에 `terraform/scripts/pre-destroy-karpenter.sh`로 NodeClaim을 먼저 정리**해야 한다.
 
+#### LLM Worker (Karpenter) `[신규 2026-09-25]`
+
+AI 라벨링(매시 15분)과 연동되는 LLM worker(Ollama, CPU 추론) 전용 NodePool이다. 요청 스펙은 CPU `requests 2 / limits 4`, Memory `requests 8Gi / limits 12Gi`, GPU 없음, 동시 실행 1이다. BE·AI Worker(`t3.large`)는 Pod가 쓸 수 있는 CPU가 약 1.73이라 `requests 2`가 들어가지 않아 분리한다.
+
+| 항목 값             |                                                                                  |
+| ---------------- | -------------------------------------------------------------------------------- |
+| NodePool / EC2NodeClass | `llm` / `llm` (`gitops/platform/karpenter/resources/`)                       |
+| Instance Type    | `m6i.xlarge` (`4 vCPU / 16 GiB`) — 지속 CPU 부하라 버스터블(`t3`) 제외             |
+| Capacity Type    | On-Demand                                                                        |
+| 최소 Node 수        | `0` — LLM Pod가 뜰 때만 1대 생성                                                         |
+| 상한               | `cpu: 4`, `memory: 16Gi` (1대)                                                     |
+| 회수               | `WhenEmpty`, `consolidateAfter: 2m`                                               |
+| Node Label / Taint | `workload: llm` / `workload=llm:NoSchedule`                                     |
+| Subnet·SG·Instance Profile | BE·AI Worker와 동일                                                         |
+| Root Volume      | **50 GiB EBS** (모델 파일·이미지)                                                     |
+
+- **왜 BE·AI NodePool에 인스턴스 타입만 추가하지 않나**: taint는 NodePool 단위라 `m6i.xlarge`에만 걸 수 없다. 다른 Pod(특히 `karpenter.sh/do-not-disrupt`가 붙은 ai)가 올라타면 노드가 회수되지 않아 상시 과금되고, 두 Pod를 한 노드에 묶는 bin-packing 때문에 LLM이 아닌 Pod가 `m6i.xlarge`를 띄울 수도 있다. BE·AI 상한(`cpu: 8`)도 나눠 쓰게 된다.
+- LLM Pod는 `nodeSelector: {workload: llm}` + `tolerations: [{key: workload, value: llm, effect: NoSchedule}]`를 지정한다.
+- Close 스크립트의 Karpenter 종료 대상(`terraform/scripts/mgmt/common.sh` `KARPENTER_NODEPOOL_NAMES`)에 `llm`을 포함한다.
+- 비용: `m6i.xlarge` 서울 On-Demand `$0.236/h`. 매시 기동이면 회당 과금 시간은 실행 + 노드 기동(수 분) + `consolidateAfter`(2분)다. 회당 30분이면 약 `$85/월`, 상시 기동이면 약 `$172/월`이다.
+- EC2 On-Demand Standard vCPU 할당량은 `32`(2026-09-25 증설)다. 평시 사용 16 + BE·AI 상한까지 +4 + LLM 4 = 최대 24.
+- `[확정 필요]` Alloy(logs·metrics) DaemonSet은 taint를 tolerate하지 않으면 이 노드에 뜨지 않는다. LLM Pod 로그·메트릭 수집이 필요하면 Alloy values에 toleration을 추가한다.
+
 #### 워크로드 배치 제어
 
 Node Group별 워크로드 배치를 명확하게 하기 위해 Kubernetes Label을 사용한다.
@@ -534,7 +557,7 @@ Terraform 및 Helm 코드 작성 전에 다음 값을 최종 확정해야 한다
 
 ## 5. AI 워크로드
 
-AI 워크로드는 **GPU Node를 사용하지 않고 CPU 기반 Pod로 구성**하며, EKS의 BE·AI Worker Node Group에 배치한다.
+AI 워크로드는 **GPU Node를 사용하지 않고 CPU 기반 Pod로 구성**하며, EKS의 BE·AI Worker Node Group에 배치한다. 단, LLM worker는 리소스 요구량 때문에 전용 LLM Worker(Karpenter NodePool `llm`)에 배치한다(4.2).
 
 ### 5.1 구성
 

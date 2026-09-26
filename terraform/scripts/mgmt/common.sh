@@ -42,8 +42,11 @@ MANAGED_NODEGROUPS=(
 # 직접 종료하고, Open 때는 Pod 수요에 따라 Karpenter가 다시 띄우므로 할 일이 없다.
 # (Karpenter 컨트롤러가 system-ng 위에서 돌기 때문에 Managed Node Group을 전부 0으로 내린
 #  뒤 종료해야 재프로비저닝이 안 된다 — close-infra.sh 순서 참고)
+# NodePool을 새로 만들면 여기에도 추가해야 Close 때 같이 꺼진다(gitops/platform/karpenter/resources).
+#   - be-ai: BE·AI·배치·Jenkins agent (t3.large)
+#   - llm  : LLM worker 전용 (m6i.xlarge, 매시 labeling 때만 뜸)
 KARPENTER_NODEPOOL_TAG_KEY="karpenter.sh/nodepool"
-KARPENTER_NODEPOOL_NAMES=("be-ai")
+KARPENTER_NODEPOOL_NAMES=("be-ai" "llm")
 
 NAT_INSTANCE_NAME_TAG="${PROJECT}-${ENV}-nat"
 
