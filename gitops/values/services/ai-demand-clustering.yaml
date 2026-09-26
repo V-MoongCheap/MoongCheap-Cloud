@@ -47,7 +47,7 @@ cronjob:
   config:
     BACKEND_BASE_URL: "http://backend"
 
-    MFDS_CATALOG_PROFILES_PATH: "/artifacts/catalog_profiles.csv"
+    DEMAND_CATALOG_SEED_PATH: "/artifacts/product_catalog_seed_v5.csv"
 
     DEMAND_TAXONOMY_PATH: "/artifacts/taxonomy.json"
 
