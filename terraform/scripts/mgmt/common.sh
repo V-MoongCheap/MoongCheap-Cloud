@@ -29,12 +29,12 @@ EKS_CLUSTER_NAME="${PROJECT}-${ENV}-eks"
 # Open 시 desired로 올리고 Close 시 0으로 내리는 Managed Node Group 목록 ("이름=open시 desired").
 # 순서 = Open 순서(컨트롤러가 뜨는 system부터). Close는 전부 0으로 내리므로 순서 무관.
 # Close가 되려면 Terraform 쪽 min_size가 0이어야 한다(modules/eks fe_min_size / system_min_size).
-#   - system-ng: ArgoCD·Karpenter 컨트롤러 등 고정 노드 (DEC-1, t3.medium ×3 — 2026-09-22
+#   - system-ng: ArgoCD·Karpenter 컨트롤러 등 고정 노드 (DEC-1, t3.medium ×4 — 2026-09-22
 #     실측 결과 2대(34슬롯)로는 max-pods 한도(17/노드) 초과해 argocd-server·jenkins-0이
-#     Pending이라 3대로 증설, BE·AI Subnet)
+#     Pending이라 3대로 증설, BE·AI Subnet. 2026-09-26 2c 노드 메모리 고갈로 NotReady → 4대, 2a·2c 각 2대)
 #   - fe-ng    : FE 워크로드 (t3.small ×2)
 MANAGED_NODEGROUPS=(
-  "${PROJECT}-${ENV}-system-ng=3"
+  "${PROJECT}-${ENV}-system-ng=4"
   "${PROJECT}-${ENV}-fe-ng=2"
 )
 

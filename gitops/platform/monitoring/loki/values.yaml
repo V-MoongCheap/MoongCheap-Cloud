@@ -37,6 +37,12 @@ resultsCache:
 
 singleBinary:
   replicas: 1
+  # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+  resources:
+    requests:
+      memory: 128Mi   # 실측 max 182 / p95 106
+    limits:
+      memory: 384Mi
   persistence:
     enabled: true
     size: 20Gi
@@ -49,6 +55,13 @@ write:
   replicas: 0
 backend:
   replicas: 0
+
+sidecar:
+  resources:          # loki-sc-rules 실측 max 78
+    requests:
+      memory: 96Mi
+    limits:
+      memory: 192Mi
 
 gateway:
   enabled: true # Alloy/Grafana가 이 gateway 서비스 하나로 push/query 하면 됨

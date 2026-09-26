@@ -19,10 +19,11 @@ prometheus:
     # Alloy가 remote_write로 밀어넣는 걸 받으려면 반드시 켜야 함 (기본값 false)
     enableRemoteWriteReceiver: true
     retention: 3d # 3 일간 데이터 보관 -> 추후 변경
+    # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
     resources:
       requests:
         cpu: 250m
-        memory: 512Mi
+        memory: 768Mi   # 실측 max 774 / p95 679 (기존 512Mi)
       limits:
         memory: 1Gi
     storageSpec:
@@ -54,6 +55,18 @@ grafana:
     storageClassName: gp3
   nodeSelector:
     workload: system
+  # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+  resources:
+    requests:
+      memory: 384Mi   # 실측 max 530 / p95 304
+    limits:
+      memory: 768Mi
+  sidecar:
+    resources:        # grafana-sc-dashboard·grafana-sc-datasources 실측 max 89 / 82
+      requests:
+        memory: 96Mi
+      limits:
+        memory: 192Mi
   additionalDataSources:
     - name: Loki
       type: loki
