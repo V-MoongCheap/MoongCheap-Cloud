@@ -1,14 +1,10 @@
 image:
-  tag: "develop-ffb9a0e"
-
-
+  tag: "develop-4bb2a2b"
 autoscaling:
-  enabled: false   # KEDA가 자체 HPA를 생성하므로 기존 plain HPA는 끈다
-
+  enabled: false # KEDA가 자체 HPA를 생성하므로 기존 plain HPA는 끈다
 metrics:
   enabled: true
   path: /actuator/prometheus
-
 keda:
   enabled: true
   minReplicaCount: 2
@@ -19,13 +15,13 @@ keda:
     horizontalPodAutoscalerConfig:
       behavior:
         scaleUp:
-          stabilizationWindowSeconds: 0     # 마감 직전 급증 시 즉시 반응
+          stabilizationWindowSeconds: 0 # 마감 직전 급증 시 즉시 반응
           policies:
             - type: Percent
               value: 100
               periodSeconds: 15
         scaleDown:
-          stabilizationWindowSeconds: 300   # 급증 끝난 뒤 바로 줄이지 않고 5분 관찰
+          stabilizationWindowSeconds: 300 # 급증 끝난 뒤 바로 줄이지 않고 5분 관찰
           policies:
             - type: Pods
               value: 1
@@ -33,4 +29,4 @@ keda:
   triggers:
     - serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc:9090
       query: 'sum(rate(http_server_requests_seconds_count{service="backend", namespace="moongcheap-develop", uri!="/actuator/health"}[1m]))'
-      threshold: "50"   # k6 부하테스트로 확정 예정 (지금은 placeholder)
+      threshold: "50" # k6 부하테스트로 확정 예정 (지금은 placeholder)

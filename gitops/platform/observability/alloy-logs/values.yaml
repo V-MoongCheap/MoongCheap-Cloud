@@ -11,16 +11,30 @@ service:
   
 controller:
   type: daemonset
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: workload
-                operator: NotIn
-                values:
-                  - system
+  # system node group의 스펙 문제시 다음과 같이 설정하여 서비스 그룹에만 배포되도록 설정 가능
+  # 스펙 증설 완료하여 해당 기능 주석처리 (26.09.28)
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #         - matchExpressions:
+  #             - key: workload
+  #               operator: NotIn
+  #               values:
+  #                 - system
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: llm
+      effect: NoSchedule
+
 alloy:
+  resources:
+    requests:
+      cpu: 30m
+      memory: 80Mi
+    limits:
+      memory: 256Mi
   configMap:
     content: |
       // 이 노드에 있는 파드만 대상으로 삼는다 (데몬셋 전체가 같은 파드를 중복으로 보지 않도록)

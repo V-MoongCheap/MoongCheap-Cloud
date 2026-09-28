@@ -15,18 +15,23 @@ controller:
   hostNetwork: true
   hostPID: true
   dnsPolicy: ClusterFirstWithHostNet
-  # system-ng(ArgoCD/Karpenter Controller/Jenkins Controller 전용, 고정 노드그룹)에는
-  # 안 띄운다 — 안 그래도 좁은 system-ng 노드에 daemonset이 계속 얹혀서
-  # "Too many pods"로 컨트롤러 파드가 Pending되는 문제가 있었음(2026-09-23).
-  affinity:
-    nodeAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        nodeSelectorTerms:
-          - matchExpressions:
-              - key: workload
-                operator: NotIn
-                values:
-                  - system
+  # [2026-09-28] 전체 노드(system 포함)에 배포한다.
+  # - 09-23에는 system 노드 max-pods 17 한도로 "Too many pods"가 나서 제외했으나,
+  #   D-59(prefix delegation, max-pods 110)와 system-ng 4대 증설(09-26)로 해소.
+  # - nodeExporter를 끈 구성이라, 여기서 빠진 노드는 호스트 메트릭이 아예 수집되지 않는다
+  #   (09-26 메모리 고갈 노드가 system이었는데 보이지 않았음).
+  # system 노드 여유가 다시 부족하면 아래 affinity 주석을 해제해 서비스 노드에만 배포할 수 있다.
+  # LLM NodePool(taint workload=llm:NoSchedule, PR #109) 노드에도 배포
+
+  # affinity:
+  #   nodeAffinity:
+  #     requiredDuringSchedulingIgnoredDuringExecution:
+  #       nodeSelectorTerms:
+  #         - matchExpressions:
+  #             - key: workload
+  #               operator: NotIn
+  #               values:
+  #                 - system
   volumes:
     extra:
       - name: rootfs
@@ -38,8 +43,19 @@ controller:
       - name: sysfs
         hostPath:
           path: /sys
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: llm
+      effect: NoSchedule
 
 alloy:
+  resources:
+    requests:
+      cpu: 30m
+      memory: 80Mi
+    limits:
+      memory: 256Mi
   mounts:
     extra:
       - name: rootfs
