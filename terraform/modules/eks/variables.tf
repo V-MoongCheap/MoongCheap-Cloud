@@ -147,7 +147,7 @@ variable "eso_service_account_name" {
 variable "jenkins_namespace" {
   type        = string
   description = "Jenkins가 설치된 Kubernetes Namespace"
-  default     = "infra"
+  default     = "jenkins"
 }
 
 variable "jenkins_service_account_name" {
@@ -187,6 +187,9 @@ variable "fe_max_size" {
 # 스펙업(t3.medium→t3.large 등)은 기존 2대를 롤링 교체해야 해서 그 위에 떠있는
 # Karpenter Controller·cloudflared·Envoy Gateway까지 같이 흔들리므로, 무중단인 노드
 # 추가(3대)를 택함 — 새 노드는 daemonset 5개를 빼도 12슬롯 여유(현재 부족분 2개 대비 충분).
+# 2026-09-26: 3대 → 4대. 2c의 system 노드 1대(t3.medium)에 Jenkins·Prometheus·Loki·Grafana(PVC가
+# 전부 ap-northeast-2c)와 ArgoCD application-controller가 몰려 메모리가 바닥나 kubelet이 NotReady가 됐다
+# (사용 가능 92Mi, load 22~25). 서브넷이 2a·2c 두 개라 ASG가 적은 쪽(2c)에 추가 → 2a 2대 + 2c 2대.
 variable "system_instance_type" {
   type        = string
   description = "System Worker Node Group 인스턴스 타입 (ArgoCD/Karpenter Controller/Jenkins Controller)"
@@ -196,7 +199,7 @@ variable "system_instance_type" {
 variable "system_desired_size" {
   type        = number
   description = "System Worker Node Group desired size"
-  default     = 3
+  default     = 4
 }
 
 variable "system_min_size" {
@@ -208,5 +211,14 @@ variable "system_min_size" {
 variable "system_max_size" {
   type        = number
   description = "System Worker Node Group max size"
-  default     = 3
+  default     = 4
+}
+
+# D-59: Prefix Delegation(addons.tf vpc-cni)과 반드시 짝으로 움직인다. 이 값만 올리면
+# IP가 모자라 Pod가 안 뜨고, Prefix Delegation만 켜면 kubelet 한도가 17에 묶인다.
+# 110은 EKS AMI가 vCPU 32 미만 인스턴스에 두는 상한이라 그 이상으로 올려도 의미가 없다.
+variable "system_max_pods" {
+  type        = number
+  description = "System Worker Node Group 노드 1대당 최대 Pod 수 (Prefix Delegation 전제, EKS 상한 110)"
+  default     = 110
 }

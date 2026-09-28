@@ -15,6 +15,18 @@ controller:
   hostNetwork: true
   hostPID: true
   dnsPolicy: ClusterFirstWithHostNet
+  # system-ng(ArgoCD/Karpenter Controller/Jenkins Controller 전용, 고정 노드그룹)에는
+  # 안 띄운다 — 안 그래도 좁은 system-ng 노드에 daemonset이 계속 얹혀서
+  # "Too many pods"로 컨트롤러 파드가 Pending되는 문제가 있었음(2026-09-23).
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: workload
+                operator: NotIn
+                values:
+                  - system
   volumes:
     extra:
       - name: rootfs

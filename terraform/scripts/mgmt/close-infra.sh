@@ -3,6 +3,7 @@
 # OpenSearch, EKS Control Plane, VPC, ECR, IAM, Secrets)는 건드리지 않는다.
 #   1. AWS 인증 확인
 #   2. Managed Node Group 전부 desired → 0 (system-ng, fe-ng. Karpenter 컨트롤러도 여기서 내려간다)
+#      PodDisruptionBudget 때문에 드레인이 막히면 DRAIN_GRACE(기본 180s) 후 EC2를 강제 종료한다.
 #   3. BE·AI Karpenter 노드 EC2 종료 (컨트롤러가 죽은 뒤라 재프로비저닝 안 됨)
 #   4. NAT Instance 중지 (노드가 다 내려간 뒤 마지막에)
 #   5. 상태 확인 + 로그
@@ -21,7 +22,7 @@ info "시작: Close (cluster=${EKS_CLUSTER_NAME}, region=${AWS_REGION})"
 require_vars EKS_CLUSTER_NAME NAT_INSTANCE_NAME_TAG
 check_aws_auth
 
-info "[1/4] Managed Node Group 축소 → 0 (${MANAGED_NODEGROUPS[*]})"
+info "[1/4] Managed Node Group 축소 → 0 (${MANAGED_NODEGROUPS[*]}, 드레인 유예 ${DRAIN_GRACE}s)"
 scale_managed_nodegroups close
 
 info "[2/4] Karpenter(BE·AI) 노드 종료"

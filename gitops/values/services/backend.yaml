@@ -15,6 +15,36 @@ env:
   - name: REDIS_PORT
     value: "6379"
 
+  # - name: SPRING_SESSION_DATA_REDIS_CONFIGURE_ACTION
+  #   value: "none"
+
+  - name: ALLOWED_ORIGINS
+    value: "https://moongcheap.shop"
+
+  - name: OAUTH_REDIRECT_BASE_URL
+    value: "https://moongcheap.shop"
+
+  - name: OPENSEARCH_HOST
+    value: "vpc-moongcheap-develop-os-itmwuyj5rkawx3pebp7ftspbau.ap-northeast-2.es.amazonaws.com"
+
+  - name: OPENSEARCH_PORT
+    value: "443"
+
+  - name: OPENSEARCH_SCHEME
+    value: "https"
+
+  # D-79: ProductIndexInitializer가 @ConditionalOnProperty(opensearch.auto-create-indices)라
+  # 켜지 않으면 기동 시 product_catalog_v1 인덱스·alias를 만들지 않는다(기본값은 local에서만 true).
+  # env 이름은 Spring relaxed binding 규칙대로 '-'를 지우고 '.'만 '_'로.
+  - name: OPENSEARCH_AUTOCREATEINDICES
+    value: "true"
+
+  # D-65: 기본값이 false라 결제 Outbox 발행·큐 워커·복구 스케줄러 3종이
+  # @ConditionalOnProperty에 걸려 아예 생성되지 않는다. 공동구매 낙찰 후
+  # 자동 결제가 실행되려면 켜야 한다(주문만 쌓이고 결제는 영원히 안 나감).
+  - name: PAYMENT_QUEUE_ENABLED
+    value: "true"
+
 envFrom:
   - secretRef:
       name: backend-env
@@ -33,6 +63,27 @@ readinessProbe:
 
 nodeSelector:
   workload: backend-ai
+
+# 노드 정리·재배포 중에도 끊기지 않게 2개를 유지한다(D-68).
+# - PDB minAvailable 1: Karpenter가 노드를 비울 때 한 번에 하나만 축출하고,
+#   새 Pod가 Ready가 된 뒤에 나머지를 뺀다. 두 Pod가 같은 노드에 있어도 무중단.
+# - anti-affinity(preferred): 가능하면 서로 다른 노드에 둬 노드 장애에도 하나는 남긴다.
+#   required로 하면 롤링 업데이트 때 세 번째 노드가 필요해져 preferred로 둔다.
+replicaCount: 2
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: backend
 
 resources:
   requests:

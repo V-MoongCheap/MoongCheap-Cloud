@@ -98,6 +98,33 @@ resource "aws_launch_template" "system" {
     http_tokens = "required"
   }
 
+  # D-59: vpc-cni의 ENABLE_PREFIX_DELEGATION만 켜면 IP는 늘어나지만 kubelet의 max-pods는
+  # 그대로다. EKS가 Launch Template에 AMI를 지정하지 않은 노드 그룹의 max-pods를 자동
+  # 계산할 때 Prefix Delegation을 고려하지 않기 때문에(계산식이 ENI x IP 기준), 여기서
+  # 명시적으로 올려줘야 17 -> 110이 된다. 둘 중 하나만 하면 효과가 없다.
+  #
+  # AMI를 지정하지 않았으므로 EKS가 자체 NodeConfig를 뒤에 덧붙이고, 같은 키는 병합된다
+  # (AL2023 / nodeadm). 그래서 여기엔 maxPods 한 줄만 둔다 — 클러스터 엔드포인트/CA/이름
+  # 같은 값은 EKS가 채운다.
+  user_data = base64encode(<<-EOT
+    MIME-Version: 1.0
+    Content-Type: multipart/mixed; boundary="//"
+
+    --//
+    Content-Type: application/node.eks.aws
+
+    ---
+    apiVersion: node.eks.aws/v1alpha1
+    kind: NodeConfig
+    spec:
+      kubelet:
+        config:
+          maxPods: ${var.system_max_pods}
+
+    --//--
+  EOT
+  )
+
   tag_specifications {
     resource_type = "instance"
     tags = {
