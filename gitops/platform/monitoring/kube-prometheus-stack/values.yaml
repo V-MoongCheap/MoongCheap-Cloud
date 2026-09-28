@@ -35,7 +35,21 @@ prometheus:
             requests:
               storage: 30Gi
     nodeSelector:
-      workload: system  
+      workload: system
+    # 2026-09-28 D-88 — Prometheus와 Jenkins 컨트롤러를 같은 노드에 두지 않는다.
+    # 둘 다 PVC가 2c라 2c system 노드 2대 중에서만 뜨는데, Open 직후 먼저 Ready된 한 대에
+    # Jenkins·Prometheus·Loki·Grafana가 전부 몰려 request 98%·실사용 91%까지 찼다(09-26 A-95와 같은 조건).
+    # preferred는 Open 직후 2c 노드가 한 대뿐일 때 무시되므로 required로 둔다 — 두 번째 2c 노드가
+    # Ready될 때까지 잠깐 Pending된 뒤 분산된다. 대가: 2c system 노드가 한 대만 남으면 둘 중 하나는 Pending.
+    # Grafana는 RollingUpdate + RWO PVC라 노드를 옮기면 Multi-Attach로 멈추므로 여기서 다루지 않는다.
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            namespaces: ["jenkins"]
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/component: jenkins-controller
   service:
     type: ClusterIP # LoadBalancer (on-premise 테스트 시)
     
