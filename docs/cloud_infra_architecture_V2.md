@@ -20,7 +20,7 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 | VPC / Subnet / Route Table / IGW    | AWS                       |
 | NAT Instance                        | Public Subnet             |
 | ECR / S3 / IAM / Secrets Manager    | AWS                       |
-| PostgreSQL + pgvector               | **AWS DB Private Subnet** |
+| PostgreSQL                          | **AWS DB Private Subnet** |
 | ElastiCache (Redis)                 | **AWS**                   |
 | OpenSearch                          | **AWS**                   |
 | Prometheus · Loki · Grafana         | **system Worker Node** `[개정 2026-09-21]` |
@@ -46,7 +46,7 @@ AWS를 Primary Cloud로 하여 애플리케이션·데이터 계층을 운영하
 | 1        | HTTPS Request            | User → Cloudflare DNS → Cloudflare Tunnel → cloudflared → **Envoy Gateway**(Gateway `moongcheap-gateway`) |
 | 2        | Service Traffic          | Envoy Gateway → `HTTPRoute`(host 기준) → FE / BE Service (AI는 외부 미노출)              |
 | 3        | AI Request               | Backend · API Server → CPU 기반 AI Workload                                          |
-| 4        | DB Query / Response      | Backend · API Server → **AWS RDS PostgreSQL + pgvector**                           |
+| 4        | DB Query / Response      | Backend · API Server → **AWS RDS PostgreSQL**                                      |
 | 5        | Object Upload / Download | Backend → **AWS S3**                                                               |
 | 6        | Outbound                 | Private Subnet → NAT Instance → 외부                                                 |
 | 7        | 배포                       | Developer → GitHub → Jenkins → ECR → ArgoCD → EKS                                  |
@@ -70,7 +70,7 @@ KT Cloud는 서비스 요청 처리 경로에 포함하지 않으며, **AWS 인�
 | Public Subnet      | AWS VPC  | NAT Instance              | Private Subnet의 인터넷 아웃바운드                                     |
 | WEB Private Subnet | AWS VPC  | FE Worker Node            | Frontend(Next.js) 워크로드                                        |
 | WAS Private Subnet | AWS VPC  | BE·AI Worker Node · system Worker Node | Backend(Spring), API Server, AI CPU Workload / System Workload(ArgoCD·Jenkins Controller·Observability·Envoy Gateway·cloudflared) |
-| DB Private Subnet  | AWS VPC  | RDS PostgreSQL + pgvector | 애플리케이션 데이터 및 Vector 데이터                                       |
+| DB Private Subnet  | AWS VPC  | RDS PostgreSQL            | 애플리케이션 데이터                                                       |
 | Management         | KT Cloud | Terraform 관리 리소스          | AWS 인프라 Terraform Apply / Destroy                             |
 | Backup             | KT Cloud | Backup Storage            | AWS Primary Data의 이중화 백업                                      |
 
@@ -82,12 +82,12 @@ EKS는 **단일 Cluster**로 구성하며, Worker별로 배치 Subnet을 분리�
 | ------------------------------------- | ------------------ | ------------------------ | -------------------------------------------------------------------- |
 | FE Worker (Managed Node Group)        | WEB Private Subnet | `t3.small ×2`            | Frontend                                                             |
 | BE·AI Worker (Karpenter)              | WAS Private Subnet | `t3.large ×N` (0~상한)     | Backend, API Server, AI CPU Workload, Jenkins Dynamic Agent(배치 미지정) |
-| system Worker (Managed Node Group) `[개정 2026-09-21]` | WAS Private Subnet | `t3.medium ×2` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus·Grafana·Loki, ESO, Envoy Gateway, cloudflared |
+| system Worker (Managed Node Group) `[개정 2026-09-21]` | WAS Private Subnet | `t3.medium ×4` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus·Grafana·Loki, ESO, Envoy Gateway, cloudflared |
 
 - FE Worker와 BE·AI Worker는 동일한 EKS Cluster에 포함한다.
 - FE Node Group 생성 시 대응하는 Private Subnet ID를 명시한다. BE·AI(Karpenter)는 WAS Private Subnet에 `karpenter.sh/discovery` 태그를 붙여 EC2NodeClass가 Subnet을 찾게 한다.
 - Pod는 기본적으로 해당 Worker Node가 위치한 Subnet의 네트워크를 사용한다.
-- System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·Envoy Gateway·cloudflared)는 **system Node Group**(`moongcheap-develop-system-ng`, t3.medium ×2, label `workload: system`, WAS Private Subnet)에 배치한다 `[개정 2026-09-21 — PR #27 반영, 4.2 표 개정은 후속]`.
+- System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·Envoy Gateway·cloudflared)는 **system Node Group**(`moongcheap-develop-system-ng`, t3.medium ×2, label `workload: system`, WAS Private Subnet)에 배치한다 `[개정 2026-09-26 — PR #116, 2c 메모리 고갈 대응으로 4대]`.
 - BE·AI Worker의 실제 리소스 사용량과 Jenkins Build 부하를 측정한 뒤 필요 시 전용 Node Group 분리를 검토한다.
 - 가용성을 위해 Subnet의 AZ 분산 구성을 적용한다. **AZ 및 CIDR은** **`[확정 필요]`**.
 
@@ -193,7 +193,7 @@ RDS / Redis / OpenSearch / S3
 | Envoy Gateway (`HTTPRoute`)            | FE Service        | `[FE Service Port 확정 필요]` | Frontend 요청 (`moongcheap.shop`) |
 | Envoy Gateway / FE                     | BE Service        | `[BE API Port 확정 필요]`     | Backend API (`api.moongcheap.shop`) |
 | BE                                     | API / AI Service  | `[AI API Port 확정 필요]`     | AI API 호출                |
-| BE / API                               | RDS PostgreSQL    | TCP `5432`                | PostgreSQL / pgvector    |
+| BE / API                               | RDS PostgreSQL    | TCP `5432`                | PostgreSQL               |
 | BE                                     | ElastiCache Redis | TCP `6379`                 | Cache                    |
 | BE                                     | OpenSearch        | TCP `443`                  | Search                   |
 | Workload                               | S3                | HTTPS `443`               | Object Upload / Download |
@@ -276,7 +276,7 @@ AWS를 Primary 데이터 저장소로 사용하고, KT Cloud Storage를 **Second
 
 ```
 AWS Primary Data
-   ├─ RDS PostgreSQL + pgvector
+   ├─ RDS PostgreSQL
    └─ S3 Object Storage
              ↓
        Backup Process
@@ -287,7 +287,7 @@ KT Cloud Backup Storage
 
 | 데이터 Primary Secondary Backup  |         |                  |
 | ----------------------------- | ------- | ---------------- |
-| PostgreSQL / pgvector         | AWS RDS | KT Cloud Storage |
+| PostgreSQL                    | AWS RDS | KT Cloud Storage |
 | Object Storage                | AWS S3  | KT Cloud Storage |
 
 - KT Cloud Storage는 서비스 Runtime에서 직접 조회하는 Primary Storage로 사용하지 않는다.
@@ -346,7 +346,7 @@ Observability 및 CI/CD 컨트롤러는 BE·AI Worker가 아니라 system Worker
 | ------------------------------------------- | ------------------ | ---------- | ----------------------------------------------------------------------------------------------- |
 | **FE Worker** (Managed Node Group)          | WEB Private Subnet | `t3.small` | Frontend (Next.js)                                                                              |
 | **BE·AI Worker** (Karpenter)                | WAS Private Subnet | `t3.large` | Backend(Spring), API Server, AI CPU Workload                                                    |
-| **system Worker** (Managed Node Group)      | WAS Private Subnet | `t3.medium` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus, Grafana, Loki, ESO, Envoy Gateway, cloudflared |
+| **system Worker** (Managed Node Group)      | WAS Private Subnet | `t3.medium ×4` | ArgoCD, Karpenter Controller, Jenkins Controller, Prometheus, Grafana, Loki, ESO, Envoy Gateway, cloudflared |
 | (모든 Worker)                                | —                  | —          | Alloy(DaemonSet — 노드마다 1개), kube-proxy, VPC CNI                                              |
 
 #### FE Worker Node Group
@@ -363,7 +363,7 @@ Observability 및 CI/CD 컨트롤러는 BE·AI Worker가 아니라 system Worker
 | Public IP     | 사용하지 않음            |
 | Root Volume   | 20 GiB EBS         |
 
-#### system Worker Node Group `[개정 2026-09-21]`
+#### system Worker Node Group `[개정 2026-09-26]`
 
 | 항목 값          |                    |
 | ------------- | ------------------ |
@@ -371,14 +371,15 @@ Observability 및 CI/CD 컨트롤러는 BE·AI Worker가 아니라 system Worker
 | Instance Type | `t3.medium`        |
 | vCPU / Memory | `2 vCPU / 4 GiB`   |
 | Capacity Type | On-Demand          |
-| Desired Size  | `2`                |
+| Desired Size  | `4`                |
 | Min Size      | `0` (Close 시 desired 0, 8.5) |
-| Max Size      | `2` — system 노드 여유 실측 후 `3` 검토 |
+| Max Size      | `4`                |
 | Subnet        | WAS Private Subnet |
 | Node Label    | `workload: system` |
 | Taint         | 없음                |
 | Public IP     | 사용하지 않음            |
 
+- 증설 이력: 2대(09-21) → 3대(09-22, max-pods 17/노드 초과로 argocd-server·jenkins-0 Pending) → **4대(09-26, 2c 노드 메모리 고갈로 NotReady — A-96)**. 2a·2c에 각 2대씩 둔다. 같은 날 system 워크로드 전체에 memory requests/limits를 실측 기준으로 지정했다(PR #116).
 - ArgoCD·Karpenter Controller·Jenkins Controller·Prometheus·Grafana·Loki·ESO·Envoy Gateway(Controller + Envoy Proxy)·cloudflared는 `nodeSelector: {workload: system}`으로 이 그룹에 배치한다(gitops `platform/*/values.yaml` 기준).
 - Alloy(logs·metrics)는 DaemonSet이라 모든 Worker에 1개씩 뜬다.
 - **Jenkins Dynamic Agent는 `nodeSelector` 미지정** `[확정 필요]` — 현재는 스케줄러가 여유 있는 노드(FE 포함)에 배치한다. Build 부하를 BE·AI(Karpenter)로 보내려면 Pod 템플릿에 `nodeSelector: {workload: backend-ai}` 추가가 필요하다(K-2(d)).
@@ -587,7 +588,7 @@ Backend
 AI API Service
    ↓
 AI Pod
-   ├─ RDS PostgreSQL + pgvector
+   ├─ RDS PostgreSQL
    └─ S3
 
 ```
@@ -595,7 +596,7 @@ AI Pod
 | Source Destination Port 용도  |                |                             |                 |
 | --------------------------- | -------------- | --------------------------- | --------------- |
 | Backend                     | AI API Service | `[AI API Port 확정 필요]`       | AI 기능 호출        |
-| AI Workload                 | RDS PostgreSQL | TCP `5432` `[접근 필요 시]`      | 데이터 / Vector 조회 |
+| AI Workload                 | RDS PostgreSQL | TCP `5432` `[접근 필요 시]`      | 데이터 조회        |
 | AI Workload                 | S3             | HTTPS `443` `[접근 필요 시]`     | Object 조회       |
 | Prometheus                  | AI Workload    | `[Metrics Port/Path 확정 필요]` | Metrics 수집      |
 
@@ -620,14 +621,13 @@ AI Workload 역시 다른 애플리케이션 Pod와 동일한 Observability 체�
 
 서비스의 Primary Data Layer는 AWS에 구성한다.
 
-관계형 데이터와 Vector 데이터는 **Amazon RDS for PostgreSQL + pgvector**, Object 데이터는 **Amazon S3**에 저장한다. KT Cloud Storage는 서비스 Runtime에서 직접 사용하는 데이터 계층이 아니라 **Secondary Backup Storage**로 사용한다.
+관계형 데이터는 **Amazon RDS for PostgreSQL**, Object 데이터는 **Amazon S3**에 저장한다. KT Cloud Storage는 서비스 Runtime에서 직접 사용하는 데이터 계층이 아니라 **Secondary Backup Storage**로 사용한다.
 
 ### 6.1 데이터 계층 구성
 
 | 구성 배치 용도 접근 경로   |                             |                     |                    |
 | ---------------- | --------------------------- | ------------------- | ------------------ |
 | PostgreSQL       | AWS RDS / DB Private Subnet | 애플리케이션 데이터          | BE·AI → TCP `5432` |
-| pgvector         | RDS PostgreSQL Extension    | Vector 데이터          | PostgreSQL과 동일     |
 | Object Storage   | AWS S3                      | 이미지·파일 등 Object 데이터 | HTTPS `443`        |
 | Redis            | Amazon ElastiCache          | Cache               | TCP `6379`         |
 | OpenSearch       | Amazon OpenSearch Service   | 서비스 검색              | HTTPS `443`        |
@@ -635,9 +635,9 @@ AI Workload 역시 다른 애플리케이션 Pod와 동일한 Observability 체�
 
 ---
 
-### 6.2 RDS PostgreSQL + pgvector
+### 6.2 RDS PostgreSQL
 
-PostgreSQL은 **Amazon RDS for PostgreSQL**을 사용하고, Vector 데이터는 별도의 Vector DB를 구성하지 않고 PostgreSQL의 `pgvector` Extension을 사용한다.
+PostgreSQL은 **Amazon RDS for PostgreSQL**을 사용한다. Vector 검색(`pgvector`)은 AI 파트 요구사항 변경으로 **도입하지 않는다** `[종결 2026-09-28, C-9]`.
 
 | 항목 값                |                               |
 | ------------------- | ----------------------------- |
@@ -652,7 +652,6 @@ PostgreSQL은 **Amazon RDS for PostgreSQL**을 사용하고, Vector 데이터는
 | Instance Class      | **`db.t4g.medium`**           |
 | Port                | TCP `5432`                    |
 | Public Access       | 비활성화                          |
-| pgvector            | PostgreSQL Extension으로 구성     |
 | Database Name       | `[확정 필요]`                     |
 | Master Username     | `[확정 필요]`                     |
 | Password 관리         | AWS Secrets Manager           |
@@ -670,8 +669,7 @@ BE / AI Workload
 RDS Security Group
        ↓ TCP 5432
 RDS PostgreSQL
-       ↓
-pgvector Extension
+
 
 ```
 
@@ -738,7 +736,7 @@ KT Cloud Storage는 AWS Primary Data Layer의 장애 또는 데이터 손실에 
 
 ```
 AWS Primary Data
-├─ RDS PostgreSQL + pgvector
+├─ RDS PostgreSQL
 └─ S3 Object Storage
           ↓
     Backup Process
@@ -749,7 +747,7 @@ KT Cloud Backup Storage
 
 | 백업 대상 Primary Secondary  |         |                  |
 | ------------------------ | ------- | ---------------- |
-| PostgreSQL / pgvector    | AWS RDS | KT Cloud Storage |
+| PostgreSQL               | AWS RDS | KT Cloud Storage |
 | Object 데이터               | AWS S3  | KT Cloud Storage |
 
 - KT Cloud Storage는 서비스 Runtime에서 직접 조회하지 않는다.
