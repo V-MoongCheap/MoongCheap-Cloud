@@ -1,5 +1,9 @@
 # Jenkins CI/CD 파이프라인 구조
 
+- **기준일:** 2026-09-28
+- **기준 브랜치:** `feat/gitops` (backend/frontend 최신 패턴 기준), `develop` (그 외 공통 내용)
+- **현재 상태:** 정적 코드 리뷰 단계 / Jenkins·EKS 실제 통합 빌드 미검증
+
 이 문서는 `gitops/jenkins/pipelines/` 아래 각 서비스 Jenkinsfile이 공통으로 따르는 패턴과,
 그 패턴이 왜 이렇게 설계됐는지를 설명합니다. 새 서비스 Jenkinsfile을 추가하거나
 기존 파일을 수정할 때 기준으로 삼는 문서입니다.
