@@ -47,6 +47,21 @@
           "ec2:ResourceTag/karpenter.sh/nodepool": "*"
         }
       }
+    },
+    {
+      "Sid": "ForceTerminateManagedNodeGroupInstances",
+      "Effect": "Allow",
+      "Action": "ec2:TerminateInstances",
+      "Resource": "arn:aws:ec2:ap-northeast-2:840851421204:instance/*",
+      "Condition": {
+        "StringEquals": {
+          "ec2:ResourceTag/eks:cluster-name": "moongcheap-develop-eks",
+          "ec2:ResourceTag/eks:nodegroup-name": [
+            "moongcheap-develop-system-ng",
+            "moongcheap-develop-fe-ng"
+          ]
+        }
+      }
     }
   ]
 }
