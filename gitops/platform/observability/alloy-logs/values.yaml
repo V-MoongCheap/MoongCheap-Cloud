@@ -22,7 +22,19 @@ controller:
   #               operator: NotIn
   #               values:
   #                 - system
+  tolerations:
+    - key: workload
+      operator: Equal
+      value: llm
+      effect: NoSchedule
+
 alloy:
+  resources:
+    requests:
+      cpu: 30m
+      memory: 80Mi
+    limits:
+      memory: 256Mi
   configMap:
     content: |
       // 이 노드에 있는 파드만 대상으로 삼는다 (데몬셋 전체가 같은 파드를 중복으로 보지 않도록)
