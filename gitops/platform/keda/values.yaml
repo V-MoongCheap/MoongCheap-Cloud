@@ -1,0 +1,33 @@
+# gitops/platform/keda/values.yaml
+# KEDA operator 배치 설정. 다른 플랫폼 컴포넌트(jenkins, kube-prometheus-stack)와
+# 동일하게 system 노드풀에 배치한다.
+nodeSelector:
+  workload: system
+
+resources:
+  operator:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      memory: 1000Mi
+  metricServer:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      memory: 1000Mi
+  webhooks:
+    requests:
+      cpu: 100m
+      memory: 100Mi
+    limits:
+      memory: 1000Mi
+
+# (선택) KEDA 자체 리컨실 상태를 모니터링하고 싶으면 켠다.
+# 켜면 KEDA가 자기 ServiceMonitor를 스스로 만들어준다.
+prometheus:
+  operator:
+    enabled: true
+    serviceMonitor:
+      enabled: true
