@@ -1,0 +1,13 @@
+# 백업 암호화용 gpg 공개키. 공개키는 비밀이 아니다 — 클러스터에는 공개키만 두고,
+# 개인키는 AWS 밖(재혁 비밀번호 관리자 + 오프라인 사본)에만 둔다. 클러스터가 털려도 백업은 복호화할 수 없다.
+# 교체: gpg --armor --export moongcheap-rds-backup 결과를 아래에 붙인다.
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: rds-backup-gpg-public-key
+  namespace: moongcheap-backup
+
+data:
+  public.asc: |
+    TODO-REPLACE-WITH-PUBLIC-KEY

@@ -1,0 +1,90 @@
+# RDS 논리 백업(L3) → KT Object Storage. 매일 21:30 KST.
+# 클러스터는 Close(평일 22:00) 때 노드·NAT가 모두 내려가므로 Close 직전에 돈다.
+# Close 뒤에는 backend도 내려가 DB 쓰기가 없어서, 21:30 덤프가 빠뜨리는 구간은 Close까지 30분뿐이다.
+# 수동 실행: kubectl -n moongcheap-backup create job --from=cronjob/rds-backup manual-$(date +%m%d-%H%M)
+apiVersion: batch/v1
+kind: CronJob
+
+metadata:
+  name: rds-backup
+  namespace: moongcheap-backup
+
+spec:
+  schedule: "30 21 * * *"
+  timeZone: "Asia/Seoul"
+  concurrencyPolicy: Forbid          # 이전 실행이 안 끝났으면 겹쳐 돌지 않는다
+  startingDeadlineSeconds: 1800      # 21:30에 못 떴으면 30분 안에만 재시도 (Close 이후로 밀리지 않게)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1500    # 25분 안에 못 끝나면 실패 처리 (1GB 미만 기준 충분)
+
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: rds-backup
+
+        spec:
+          restartPolicy: Never
+          nodeSelector:
+            workload: system
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 999                # postgres 이미지의 postgres 사용자
+            runAsGroup: 999
+            fsGroup: 999
+
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 5Gi
+            - name: scripts
+              configMap:
+                name: rds-backup-scripts
+                defaultMode: 0555
+            - name: gpg
+              configMap:
+                name: rds-backup-gpg-public-key
+
+          initContainers:
+            - name: dump
+              image: postgres:16            # 서버 16.9와 같은 메이저 (클라이언트가 낮으면 덤프 실패)
+              command: ["/scripts/dump.sh"]
+              env:
+                - { name: HOME, value: /tmp }
+                - { name: PGSSLMODE, value: require }
+                - { name: PGHOST, valueFrom: { secretKeyRef: { name: rds-backup-db, key: host } } }
+                - { name: PGPORT, valueFrom: { secretKeyRef: { name: rds-backup-db, key: port } } }
+                - { name: PGDATABASE, valueFrom: { secretKeyRef: { name: rds-backup-db, key: dbname } } }
+                - { name: PGUSER, valueFrom: { secretKeyRef: { name: rds-backup-db, key: username } } }
+                - { name: PGPASSWORD, valueFrom: { secretKeyRef: { name: rds-backup-db, key: password } } }
+              volumeMounts:
+                - { name: work, mountPath: /work }
+                - { name: scripts, mountPath: /scripts }
+                - { name: gpg, mountPath: /gpg }
+              resources:
+                requests: { cpu: 100m, memory: 256Mi }
+                limits: { memory: 1Gi }
+
+          containers:
+            - name: upload
+              image: amazon/aws-cli:2.36.5  # KT 업로드 검증한 버전 (2026-09-29)
+              command: ["/scripts/upload.sh"]
+              env:
+                - { name: HOME, value: /tmp }
+                - { name: AWS_DEFAULT_REGION, value: us-east-1 }   # KT는 리전 무관, 서명용 기본값
+                - { name: RETENTION_DAYS, value: "15" }             # 잠금 14일 + 하루
+                - { name: AWS_ACCESS_KEY_ID, valueFrom: { secretKeyRef: { name: rds-backup-kt, key: access_key_id } } }
+                - { name: AWS_SECRET_ACCESS_KEY, valueFrom: { secretKeyRef: { name: rds-backup-kt, key: secret_access_key } } }
+                - { name: KT_ENDPOINT, valueFrom: { secretKeyRef: { name: rds-backup-kt, key: endpoint } } }
+                - { name: KT_BUCKET, valueFrom: { secretKeyRef: { name: rds-backup-kt, key: bucket } } }
+              volumeMounts:
+                - { name: work, mountPath: /work }
+                - { name: scripts, mountPath: /scripts }
+              resources:
+                requests: { cpu: 100m, memory: 128Mi }
+                limits: { memory: 512Mi }
