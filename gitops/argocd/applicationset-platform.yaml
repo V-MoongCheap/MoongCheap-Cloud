@@ -41,6 +41,14 @@ spec:
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{ .namespace }}"
+      
+      {{- if (dig "ignoreReplicas" false .) }}
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+      {{- end }}
 
       syncPolicy:
         automated:

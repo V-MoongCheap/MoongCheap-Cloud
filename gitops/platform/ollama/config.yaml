@@ -2,6 +2,8 @@ name: ollama
 namespace: moongcheap-develop
 
 helm:
-  repoURL: <Ollama Helm Repository>
+  repoURL: https://helm.otwld.com/
   chart: ollama
-  version: <고정 버전>
+  version: 1.79.0
+
+ignoreReplicas: true
