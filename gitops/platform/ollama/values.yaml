@@ -22,10 +22,10 @@ ollama:
     pull: []
     run: []
 
-# Ollama 모델을 EBS에 영구 저장한다.
 persistentVolume:
   enabled: true
   size: 10Gi
+  storageClass: gp3
   accessModes:
     - ReadWriteOnce
 
