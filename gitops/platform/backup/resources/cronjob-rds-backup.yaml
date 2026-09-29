@@ -29,8 +29,11 @@ spec:
 
         spec:
           restartPolicy: Never
+          # RDS 보안 그룹은 be-ai 노드 SG에서 오는 5432만 허용한다(terraform/modules/rds).
+          # system 노드에 두면 pg_dump가 Connection timed out으로 실패한다(2026-09-30 01:00 첫 실행).
+          # DB 접근 범위를 넓히지 않고, 다른 DB 클라이언트(backend·AI)와 같은 노드에서 돌린다.
           nodeSelector:
-            workload: system
+            workload: backend-ai
 
           securityContext:
             runAsNonRoot: true
