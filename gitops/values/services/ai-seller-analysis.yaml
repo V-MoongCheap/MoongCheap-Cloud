@@ -1,4 +1,4 @@
-nameOverride: ai
+nameOverride: ai-seller-analysis
 
 workload:
   kind: Deployment
