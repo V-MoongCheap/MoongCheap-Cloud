@@ -31,3 +31,7 @@ prometheus:
     enabled: true
     serviceMonitor:
       enabled: true
+      # Prometheus는 release=kube-prometheus-stack 라벨이 붙은 ServiceMonitor만 수집한다.
+      # 이 라벨이 없어서 keda_* 메트릭이 하나도 수집되지 않았다(2026-09-29 확인).
+      additionalLabels:
+        release: kube-prometheus-stack
