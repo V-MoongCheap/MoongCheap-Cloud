@@ -45,6 +45,23 @@ env:
   - name: PAYMENT_QUEUE_ENABLED
     value: "true"
 
+  # ⚠️ 부하 테스트 전용(2026-09-29 ~, develop 한정) — 테스트 종료 후 이 블록을 되돌리고,
+  # develop → main 머지 전에 반드시 제거한다(prod도 이 파일을 읽는다).
+  # BE 부하 테스트 정의서 "부하테스트 데이터 준비 배포" 설정. 결제 측정 단계에서
+  # PAYMENT_WORKER_ENABLED만 true로 바꿔 재배포한다. 내부 API 키는 backend-env의
+  # MOONGCHEAP_INTERNAL_API_KEY(ESO)로 이미 들어가 있다.
+  - name: LOAD_TEST_ENABLED
+    value: "true"
+
+  - name: PAYMENT_GATEWAY_MODE # toss | mock — mock이면 실제 Toss를 호출하지 않는다
+    value: "mock"
+
+  - name: PAYMENT_MOCK_DELAY
+    value: "300ms"
+
+  - name: PAYMENT_WORKER_ENABLED # false: 예약 생성·발행은 유지하고 Worker 신규 획득만 멈춘다
+    value: "false"
+
 envFrom:
   - secretRef:
       name: backend-env
