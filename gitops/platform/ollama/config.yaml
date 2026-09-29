@@ -1,0 +1,9 @@
+name: ollama
+namespace: moongcheap-develop
+
+helm:
+  repoURL: https://helm.otwld.com/
+  chart: ollama
+  version: 1.79.0
+
+ignoreReplicas: true

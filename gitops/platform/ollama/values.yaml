@@ -1,0 +1,77 @@
+# Ollama는 LLM 전용 Karpenter NodePool에서만 실행한다.
+nodeSelector:
+  workload: llm
+
+# llm NodePool의 workload=llm:NoSchedule taint를 허용한다.
+tolerations:
+  - key: workload
+    operator: Equal
+    value: llm
+    effect: NoSchedule
+
+# CPU 기반 Ollama
+ollama:
+  gpu:
+    enabled: false
+
+  port: 11434
+
+  # 모델은 인프라 배포 시 자동으로 변경하지 않는다.
+  # 최초 모델 적재 및 모델 업데이트는 별도로 수행한다.
+  models:
+    pull: []
+    run: []
+
+# Ollama 모델을 EBS에 영구 저장한다.
+persistentVolume:
+  enabled: true
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+# KEDA가 replica 수를 관리하므로
+# Helm 자체 HPA는 사용하지 않는다.
+autoscaling:
+  enabled: false
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 8Gi
+  limits:
+    cpu: "4"
+    memory: 12Gi
+
+service:
+  type: ClusterIP
+  port: 11434
+
+ingress:
+  enabled: false
+
+
+# KEDA가 Ollama Deployment를 시간 기반으로 0 ↔ 1 스케일링한다.
+extraObjects:
+  - apiVersion: keda.sh/v1alpha1
+    kind: ScaledObject
+
+    metadata:
+      name: ollama
+      namespace: moongcheap-develop
+
+    spec:
+      scaleTargetRef:
+        name: ollama
+
+      minReplicaCount: 0
+      maxReplicaCount: 1
+
+      cooldownPeriod: 60
+
+      triggers:
+        - type: cron
+          metadata:
+            timezone: Asia/Seoul
+            start: "0 * * * *"
+            end: "45 * * * *"
+            desiredReplicas: "1"

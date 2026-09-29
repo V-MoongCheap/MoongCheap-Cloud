@@ -17,6 +17,7 @@ spec:
     - docker.io/envoyproxy
     - https://charts.external-secrets.io
     - https://kedacore.github.io/charts
+    - https://helm.otwld.com/
     
   destinations:
     - server: https://kubernetes.default.svc
