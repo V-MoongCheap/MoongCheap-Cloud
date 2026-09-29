@@ -14,7 +14,7 @@ spec:
         elements:
           - service: frontend
           - service: backend
-          - service: ai
+          - service: ai-seller-analysis
 
   template:
     metadata:
