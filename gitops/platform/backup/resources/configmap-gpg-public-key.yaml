@@ -1,5 +1,6 @@
 # 백업 암호화용 gpg 공개키. 공개키는 비밀이 아니다 — 클러스터에는 공개키만 두고,
 # 개인키는 AWS 밖(재혁 비밀번호 관리자 + 오프라인 사본)에만 둔다. 클러스터가 털려도 백업은 복호화할 수 없다.
+# 키: moongcheap-rds-backup, rsa4096, fingerprint D22E9BD89D142724D4FF3AF9EB895539635A8F45 (2026-09-30 생성)
 # 교체: gpg --armor --export moongcheap-rds-backup 결과를 아래에 붙인다.
 apiVersion: v1
 kind: ConfigMap
@@ -10,4 +11,31 @@ metadata:
 
 data:
   public.asc: |
-    TODO-REPLACE-WITH-PUBLIC-KEY
+    -----BEGIN PGP PUBLIC KEY BLOCK-----
+
+    mQINBGq71ygBEACy0sXKIb3Y7haDrICRCbO/KcZQR1Gp01NGjuzkYdYnJcQPkVUH
+    DfzMbh2vPZsDR/SWdOR5V4SRZsuKKVCLwtRZ3b8ZST5TVgB3L6xfjZu91MuU8gch
+    jb/rnwQqCFQdJNf1AUENPvSftap+LRce8ilwIkdezr5Pi3Z8rNzCXmno5WAe3gSA
+    iOBcpUA5UBmV0d7qE2y6alzlqGgDmvSD3VTbboOBD6px14tEqsA1bcuUVjtN7tLq
+    cAexV1XqFJjW6CE23H1jOkF6IlsCu/cckVcj9CPola+sWX/AGq89ZwOvvpq5qCYZ
+    t77UErpXzfJv6HSlIMV+Kv1VyW/SnWtmD4fmGBAlAV+16p/jKegpGRzFjhAnY2CX
+    10gjR0j7lPJBdar+goBk4Q858+eztKCb3iyvBNyQcsAw0GmK/+63275CHWCst8b4
+    nVQFfvxkD/P1q9H3WFozg6Iwc5rCVKBbL1LyczEFSj67rCby2VsXr4LgkHfOMUqd
+    PXvIa0Ltf3whYLCuuVJfqg4A3MCE/9hoM/UpmMWyU1KsFJ/g4bi8bvitH0HTFW1+
+    kSxQasiWWR6xiA30edfSyaxxj0I1Yi8GD5IV6SFbXz0XNJ8yS9g9gXj6HPGc8kWF
+    SKzN3eNcykQT58Ny+Afciyd/2GE9UtRqOcgc3F8LF5xo1tLttrTQMi/GAQARAQAB
+    tBVtb29uZ2NoZWFwLXJkcy1iYWNrdXCJAlEEEwEKADsWIQTSLpvYnRQnJNT/Ovnr
+    iVU5Y1qPRQUCarvXKAIbDQULCQgHAgIiAgYVCgkICwIEFgIDAQIeBwIXgAAKCRDr
+    iVU5Y1qPReZGD/470WuZA3LW/RBkai1QIFmPrfNxqxpcsop2ov8TNKuDAByhstQ4
+    PZbRTimcbf5XN3vkkXZyiMD0SCxlmLsy3M+36+vVw4xha5slzoS2MZ5TvIzjuOeP
+    +fIv0lxO2OhQjDvB/D4MwsIXT2Yext8kqmJeHIVlc+EQGBczZY0kA8HX2yONxITl
+    bkrXHi2h8FEbdyTaSiT+Um0qO9NcxCNq/8uIhWO1j7bYJZ4zHpZ+QgbYmnCmVbLh
+    KhS+7Ny6/NY9jS9XY5NtLThObo4RmWnRzJHLySn0GA9rfIb5x5D6XOebarBHjmDe
+    OC9o9GdNBrq7yFw881hOzRi0VLyZhdSB1fzFF1UARtkrXZfbjoxq06D48Z90NDx3
+    G6DYHboCBAVTMCsZJAyHkDfyMct2mA5Y8DnhwBh1HRTomDvbKYIXLQ1JgAY6qF2A
+    BMH42PCSEb9pdiyr44/OK6tox2KZkrnRj6PTS3NPZ4IwYftPR1kk2goLDTq/Ip+u
+    EZMHAYH/ZKBzrUDCVk2xNQUhZhyRFmro0Qo8fFj1yRo2U2F65vD5x8wN26uCk1a1
+    xX+zICfmzRUsqcsTeW8Y+1lEoi+1y10KRgbTqMnH8HHaRhlahYYqRjw8W3GIS6o7
+    vYJhPm8ltTKmPIIcdkPI08BrvWUw/E2vS6EYGydGLLVrgkn3wAu5ZkeI0w==
+    =e/PY
+    -----END PGP PUBLIC KEY BLOCK-----
