@@ -16,6 +16,26 @@ spec:
       namespace: infra
 
   rules:
+    # 부하 테스트 내부 API 전용 타임아웃(2026-09-29). Envoy 기본 route timeout이 15초라
+    # seed(실측 15.7초)가 백엔드에서는 200으로 끝났는데 클라이언트엔 504(UT)로 돌아갔다.
+    # 클라이언트가 504를 실패로 보고 재시도하면 데이터가 중복 생성된다.
+    # 90초: Cloudflare 무료 플랜의 origin 응답 대기 한도(100초)보다 짧게 둔다.
+    # 경로 매칭은 가장 긴 prefix가 이기므로 나머지 요청은 아래 규칙(기본 15초)을 그대로 탄다.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/load-tests/internal
+
+      timeouts:
+        request: 90s
+
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: backend
+          port: 80
+          weight: 1
+
     - matches:
         - path:
             type: PathPrefix
