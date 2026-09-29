@@ -1,0 +1,7 @@
+# RDS 논리 백업(L3) 전용 네임스페이스.
+# ArgoCD 프로젝트 moongcheap-platform의 허용 대상이 "moongcheap-*"라 이 이름을 쓴다.
+apiVersion: v1
+kind: Namespace
+
+metadata:
+  name: moongcheap-backup
