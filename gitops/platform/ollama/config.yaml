@@ -1,0 +1,7 @@
+name: ollama
+namespace: moongcheap-develop
+
+helm:
+  repoURL: <Ollama Helm Repository>
+  chart: ollama
+  version: <고정 버전>

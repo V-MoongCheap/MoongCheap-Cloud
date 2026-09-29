@@ -1,0 +1,9 @@
+nodeSelector:
+  workload: llm
+
+
+tolerations:
+  - key: workload
+    operator: Equal
+    value: llm
+    effect: NoSchedule
