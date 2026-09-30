@@ -70,9 +70,6 @@ resource "aws_db_instance" "this" {
   }
 }
 
-# pgvector는 RDS 리소스 속성이 아니라 DB 접속 후 실행하는 SQL Extension이라
-# Terraform으로 직접 만들 수 없다. RDS가 뜬 뒤 한 번 아래 SQL을 실행해야 한다.
-#   CREATE EXTENSION IF NOT EXISTS vector;
 # naming_convention_V2.md: DB Secret은 moongcheap-{env}-db-secret 하나로 통일하고
 # BE·AI Pod가 전부 이 Secret을 조회한다.
 resource "aws_secretsmanager_secret" "db" {

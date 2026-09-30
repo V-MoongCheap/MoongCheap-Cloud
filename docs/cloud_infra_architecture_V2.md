@@ -87,7 +87,7 @@ EKS는 **단일 Cluster**로 구성하며, Worker별로 배치 Subnet을 분리�
 - FE Worker와 BE·AI Worker는 동일한 EKS Cluster에 포함한다.
 - FE Node Group 생성 시 대응하는 Private Subnet ID를 명시한다. BE·AI(Karpenter)는 WAS Private Subnet에 `karpenter.sh/discovery` 태그를 붙여 EC2NodeClass가 Subnet을 찾게 한다.
 - Pod는 기본적으로 해당 Worker Node가 위치한 Subnet의 네트워크를 사용한다.
-- System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·Envoy Gateway·cloudflared)는 **system Node Group**(`moongcheap-develop-system-ng`, t3.medium ×2, label `workload: system`, WAS Private Subnet)에 배치한다 `[개정 2026-09-26 — PR #116, 2c 메모리 고갈 대응으로 4대]`.
+- System Workload(ArgoCD·Karpenter Controller·Jenkins Controller·Observability·Envoy Gateway·cloudflared)는 **system Node Group**(`moongcheap-develop-system-ng`, t3.medium ×4, 2a·2c 각 2대, label `workload: system`, WAS Private Subnet)에 배치한다 `[개정 2026-09-28 — A-96, 2c 메모리 고갈 대응 + anti-affinity로 2a·2c 분산]`.
 - BE·AI Worker의 실제 리소스 사용량과 Jenkins Build 부하를 측정한 뒤 필요 시 전용 Node Group 분리를 검토한다.
 - 가용성을 위해 Subnet의 AZ 분산 구성을 적용한다. **AZ 및 CIDR은** **`[확정 필요]`**.
 
@@ -149,6 +149,7 @@ Pod
 | 도메인 / Host Routing    | `moongcheap.shop`(FE, apex) / `api.moongcheap.shop`(BE) / `jenkins.` `grafana.` `argocd.`(Platform, Cloudflare Access 뒤) `[확정 2026-09-17]` — AI는 외부 미노출 |
 | cloudflared 배치        | EKS Cluster 내부 `infra` Namespace, **system Node Group**(`workload: system`) — raw Deployment, Tunnel Token은 Secrets Manager → ESO |
 | cloudflared Replica   | **2**                                   |
+| HTTPS 인식(X-Forwarded-Proto) `[개정 2026-09-28 — A-87]` | **`ClientTrafficPolicy`**로 처리 — AWS ALB가 없어 TLS 종단·프로토콜 표시를 대신할 L7 로드밸런서가 없으므로, Envoy Gateway의 `ClientTrafficPolicy`(`gitops/platform/envoy-gateway/`)로 클라이언트 트래픽을 HTTPS로 인식시켜 FE/BE가 받는 요청의 프로토콜 정보가 어긋나지 않게 한다 |
 
 #### ingress-nginx EOL 대응 → Gateway API + Envoy Gateway `[확정 2026-09-19]`
 
@@ -454,8 +455,7 @@ BE·AI Worker:
 | 시스템            | EBS CSI Driver           | EKS Add-on                 |
 | 확장             | HPA                      | 애플리케이션 Pod `[적용 대상 확정 필요]` |
 | 확장             | Karpenter                | `kube-system` (Helm), Controller는 system Worker — **도입 확정(2026-09-17)**, BE·AI Worker 프로비저닝 |
-| 확장             | KEDA                     | `[도입 여부 확정 필요]`            |
-
+| 확장             | KEDA                     | **도입 확정** `[개정 2026-09-28]` — BE RPS 기반 `ScaledObject`, `minReplicaCount: 2`(do-not-disrupt 유지). Trigger threshold 등 세부값은 부하 테스트 후 별도 절에서 확정 예정 `[확정 필요]` |
 #### Pod Auto Scaling
 
 애플리케이션 Pod는 처음부터 높은 CPU/Memory를 할당하기보다 작은 Resource Request로 시작하고, 부하 테스트 결과를 기반으로 적정 Resource 및 Replica 수를 결정한다.
