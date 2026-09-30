@@ -1563,60 +1563,36 @@ pipeline {
 
 
                             # ========================================
-                            # Auto Merge
+                            # PR 즉시 Merge 시도
                             # ========================================
 
-                            GRAPHQL_QUERY="$(printf \
-                              '{"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\"%s\\", mergeMethod: SQUASH}) { pullRequest { number autoMergeRequest { enabledAt } } } }"}' \
-                              "$PR_NODE_ID")"
+                            echo "GitOps PR 즉시 merge 시도: #${PR_NUMBER} → ${BASE_BRANCH}"
 
-
-                            MERGE_RESPONSE="$(curl \
-                              --fail-with-body \
-                              -sS \
-                              -X POST \
-                              -H "Authorization: Bearer ${GIT_TOKEN}" \
-                              -H "Content-Type: application/json" \
-                              "https://api.github.com/graphql" \
-                              -d "$GRAPHQL_QUERY")"
-
-
-                            GRAPHQL_ERRORS="$(printf '%s' \
-                              "$MERGE_RESPONSE" |
-                              node -pe \
-                              'const x=JSON.parse(require("fs").readFileSync(0,"utf8")); x.errors ? JSON.stringify(x.errors) : ""')"
-
-
-                            if [ -n "$GRAPHQL_ERRORS" ]; then
-
-                                echo \
-                                  "Auto Merge 활성화 실패: $GRAPHQL_ERRORS"
-
-                                exit 1
-                            fi
-
-
-                            # ========================================
-                            # Wait for Merge
-                            # ========================================
-
+                            MAX_RETRIES=10
+                            RETRY_INTERVAL=5
                             MERGED=false
 
 
-                            for i in $(seq 1 30)
+                            for i in $(seq 1 $MAX_RETRIES)
                             do
 
-                                PR_STATE="$(curl \
+                                MERGE_RESPONSE="$(curl \
                                   --fail-with-body \
                                   -sS \
+                                  -X PUT \
                                   -H "Authorization: Bearer ${GIT_TOKEN}" \
                                   -H "Accept: application/vnd.github+json" \
-                                  "https://api.github.com/repos/${GITOPS_API_REPO}/pulls/${PR_NUMBER}" |
-                                  node -pe \
-                                  'JSON.parse(require("fs").readFileSync(0,"utf8")).merged')"
+                                  "https://api.github.com/repos/${GITOPS_API_REPO}/pulls/${PR_NUMBER}/merge" \
+                                  -d '{"merge_method":"squash"}' \
+                                  || true)"
 
 
-                                if [ "$PR_STATE" = "true" ]; then
+                                MERGE_OK="$(printf '%s' "$MERGE_RESPONSE" | node -pe \
+                                  'JSON.parse(require("fs").readFileSync(0,"utf8")).merged' \
+                                  2>/dev/null || echo false)"
+
+
+                                if [ "$MERGE_OK" = "true" ]; then
 
                                     MERGED=true
 
@@ -1625,10 +1601,17 @@ pipeline {
 
 
                                 echo \
-                                  "GitOps PR Merge 대기 중... (${i}/30)"
+                                  "GitOps PR Merge 실패, ${RETRY_INTERVAL}초 후 재시도... (${i}/${MAX_RETRIES})"
 
-                                sleep 10
+                                sleep "$RETRY_INTERVAL"
                             done
+
+
+                            if [ "$MERGED" != "true" ]; then
+
+                                echo \
+                                  "GitOps PR Merge 최종 실패: $MERGE_RESPONSE"
+                            fi
 
 
                             # ========================================
