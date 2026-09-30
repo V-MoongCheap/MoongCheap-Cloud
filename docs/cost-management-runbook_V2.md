@@ -1,4 +1,5 @@
 > 작성: 인프라팀 부학성, 양재혁 · 상태: **실제 프로젝트 적용 초안**
+> `[2026-09-28]` 본문의 pgvector 표기는 작성 당시 추정 기준이다. **pgvector는 도입하지 않기로 확정**했다(C-9). RDS 비용은 Extension 유무와 관계없어 금액은 바뀌지 않는다.
 >
 > 참고 문서: `비용산출(08/12)`, `비용산출_V2(08/13)`,
 > `비용산출_V3(09/09)`, `인프라·HA·비용 차별화 전략 문서_최종`,
@@ -174,7 +175,7 @@ Compute 운영시간은 다음을 기준으로 한다.
 현재는 `[개정 2026-09-18, DEC-1]`:
 
     System NodeGroup (Managed) — 컨트롤러 고정 노드, BE·AI(WAS) Subnet
-    └─ t3.medium ×2
+    └─ t3.medium ×4 (2a·2c 각 2)
        ├─ ArgoCD
        ├─ Karpenter Controller
        └─ (기타 클러스터 컨트롤러)
@@ -203,7 +204,7 @@ Group을 0으로 내린 뒤(Karpenter 컨트롤러 종료) `karpenter.sh/nodepoo
 다시 띄운다(절차는 7.1).
 
 ~~System Add-on을 위한 별도 전용 Node는 초기에는 생성하지 않고~~ →
-`[개정 2026-09-18]` DEC-1로 System NodeGroup(t3.medium ×2)을 두기로 확정.
+`[개정 2026-09-18]` DEC-1로 System NodeGroup(t3.medium ×2 → 09-26 ×4로 증설)을 두기로 확정.
 BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scale-out한다.
 
 ------------------------------------------------------------------------
@@ -238,7 +239,7 @@ BE/WAS 워크로드 Node 부족 시에는 Karpenter가 `t3.large` 단위로 Scal
 
 | 순서 | 대상 | Close | Open | 방식 |
 | --- | --- | --- | --- | --- |
-| 1 | Managed Node Group — `system-ng`(컨트롤러, t3.medium ×2) · `fe-ng`(FE, t3.small ×2) | `desired_size` 0 | `desired_size` 2 (system → fe 순) | `eks update-nodegroup-config` (Terraform `*_min_size=0`, `desired_size`는 `ignore_changes` — system-ng 생성 시(S-1) 동일 적용 필요) |
+| 1 | Managed Node Group — `system-ng`(컨트롤러, t3.medium ×4) · `fe-ng`(FE, t3.small ×2) | `desired_size` 0 | `desired_size` system 4 · fe 2 (system → fe 순) | `eks update-nodegroup-config` (Terraform `*_min_size=0`, `desired_size`는 `ignore_changes` — system-ng 생성 시(S-1) 동일 적용 필요) |
 | 2 | BE·AI Karpenter 노드 | EC2 종료 (`karpenter.sh/nodepool` 태그로 조회) | 없음 — Pod 수요가 생기면 Karpenter가 다시 띄움 | `ec2 terminate-instances`. Karpenter 컨트롤러가 system-ng와 함께 내려간 뒤라 재프로비저닝 안 됨 |
 | 3 | NAT Instance | `stop` | `start` (노드보다 먼저) | `ec2 stop/start-instances`. ENI·EIP가 분리돼 있어 IP·라우트 유지 |
 
