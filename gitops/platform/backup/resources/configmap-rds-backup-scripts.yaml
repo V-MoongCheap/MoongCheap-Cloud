@@ -1,0 +1,76 @@
+# RDS 논리 백업 스크립트 (설계: docs/2026-09-29-rds-backup-design-draft.md L3)
+#   dump.sh   — postgres:16 initContainer: pg_dump → 무결성 확인 → gpg 공개키 암호화 → sha256
+#   upload.sh — amazon/aws-cli 컨테이너: KT 업로드(덤프 → sha256 순) → 크기 확인 → 보존 기간 지난 버전 정리
+apiVersion: v1
+kind: ConfigMap
+
+metadata:
+  name: rds-backup-scripts
+  namespace: moongcheap-backup
+
+data:
+  dump.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    cd /work
+    NAME="moongcheap-develop-$(TZ=Asia/Seoul date +%Y%m%d-%H%M).dump"
+
+    # -Fc: 압축된 custom 형식 → pg_restore로 테이블 단위 복원 가능
+    # pg_dump는 시작 시점 스냅샷 하나로 읽으므로 실행 중 쓰기가 있어도 일관성이 유지된다
+    pg_dump --format=custom --compress=6 --no-password --file "$NAME"
+    pg_restore --list "$NAME" > /dev/null   # 덤프가 읽히는지 확인
+    echo "dump: $NAME $(du -h "$NAME" | cut -f1)"
+
+    # 공개키로만 암호화한다. 개인키는 클러스터에 없다
+    export GNUPGHOME=/work/.gnupg
+    mkdir -m 700 "$GNUPGHOME"
+    gpg --batch --quiet --import /gpg/public.asc
+    FPR=$(gpg --batch --with-colons --list-keys | awk -F: '/^fpr/ {print $10; exit}')
+    gpg --batch --yes --trust-model always --recipient "$FPR" --output "$NAME.gpg" --encrypt "$NAME"
+    rm -rf "$NAME" "$GNUPGHOME"   # 평문 덤프는 남기지 않는다
+
+    sha256sum "$NAME.gpg" > "$NAME.gpg.sha256"
+    echo "$NAME.gpg" > /work/NAME
+    echo "encrypted: $NAME.gpg (key $FPR)"
+
+  upload.sh: |
+    #!/bin/bash
+    set -euo pipefail
+    cd /work
+    NAME=$(cat /work/NAME)
+    # KT 객체 잠금 버킷은 업로드에 Content-MD5 헤더가 필수다(2026-09-29 로컬 테스트).
+    # aws CLI 기본값은 체크섬을 요청 끝(trailer)에 붙여 KT가 인식하지 못하므로 헤더 방식만 쓴다.
+    export AWS_REQUEST_CHECKSUM_CALCULATION=when_required AWS_RESPONSE_CHECKSUM_VALIDATION=when_required
+    kt() { aws --endpoint-url "$KT_ENDPOINT" "$@"; }
+    md5b64() { python3 -c 'import hashlib,base64,sys;print(base64.b64encode(hashlib.md5(open(sys.argv[1],"rb").read()).digest()).decode())' "$1"; }
+    put() {
+      kt s3api put-object --bucket "$KT_BUCKET" --key "daily/$1" --body "$1" \
+        --content-md5 "$(md5b64 "$1")" --output text --query VersionId > /dev/null
+      echo "uploaded: s3://$KT_BUCKET/daily/$1"
+    }
+
+    # sha256을 나중에 올린다 → sha256이 없는 덤프는 미완성 업로드로 취급한다
+    put "$NAME"
+    put "$NAME.sha256"
+
+    REMOTE=$(kt s3api head-object --bucket "$KT_BUCKET" --key "daily/$NAME" --query ContentLength --output text)
+    LOCAL=$(stat -c %s "$NAME")
+    [ "$REMOTE" = "$LOCAL" ] || { echo "size mismatch: remote=$REMOTE local=$LOCAL"; exit 1; }
+    echo "verified: $LOCAL bytes"
+
+    # 보존 정리: RETENTION_DAYS가 지난 버전·삭제 마커를 버전 ID로 지운다.
+    # 객체 잠금(거버넌스 14일) 중인 버전은 KT가 거부한다 → 실패해도 백업 자체는 성공으로 둔다.
+    kt s3api list-object-versions --bucket "$KT_BUCKET" --prefix daily/ --output json > versions.json
+    python3 - <<'PY' > expired.txt
+    import json, os, datetime as dt
+    data = json.load(open("versions.json"))
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=int(os.environ["RETENTION_DAYS"]))
+    for v in data.get("Versions", []) + data.get("DeleteMarkers", []):
+        if dt.datetime.fromisoformat(v["LastModified"].replace("Z", "+00:00")) < cutoff:
+            print(v["Key"], v["VersionId"])
+    PY
+    while read -r key vid; do
+      kt s3api delete-object --bucket "$KT_BUCKET" --key "$key" --version-id "$vid" > /dev/null \
+        && echo "expired: $key ($vid)" || echo "skip (locked?): $key ($vid)"
+    done < expired.txt
+    echo "done"
