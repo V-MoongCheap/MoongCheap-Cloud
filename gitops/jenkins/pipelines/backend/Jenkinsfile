@@ -696,74 +696,31 @@ pipeline {
 
 
                             # ========================================
-                            # Auto Merge
+                            # PR 즉시 Merge 시도
                             # develop / main 공통
                             # ========================================
 
-                            echo "GitOps PR Auto-merge 활성화: #${PR_NUMBER} → ${BASE_BRANCH}"
+                            echo "GitOps PR 즉시 merge 시도: #${PR_NUMBER} → ${BASE_BRANCH}"
 
-                            GRAPHQL_QUERY="$(printf \
-                              '{"query":"mutation { enablePullRequestAutoMerge(input: {pullRequestId: \\"%s\\", mergeMethod: SQUASH}) { pullRequest { number autoMergeRequest { enabledAt } } } }"}' \
-                              "$PR_NODE_ID")"
-
-                            MERGE_RESPONSE="$(curl --fail-with-body \
-                              -sS \
-                              -X POST \
-                              -H "Authorization: Bearer ${GIT_TOKEN}" \
-                              -H 'Accept: application/vnd.github+json' \
-                              "https://api.github.com/graphql" \
-                              -d "$GRAPHQL_QUERY")"
-
-
-                            printf '%s' "$MERGE_RESPONSE" | node -e '
-                              const fs = require("fs");
-
-                              const result =
-                                JSON.parse(
-                                  fs.readFileSync(0, "utf8")
-                                );
-
-                              if (
-                                result.errors ||
-                                !result.data
-                                  ?.enablePullRequestAutoMerge
-                                  ?.pullRequest
-                                  ?.autoMergeRequest
-                              ) {
-                                console.error(
-                                  JSON.stringify(result)
-                                );
-
-                                process.exit(1);
-                              }
-                            '
-
-                            echo "Auto-merge 활성화 완료: PR #${PR_NUMBER}"
-
-
-                            # ========================================
-                            # Merge 완료 대기
-                            # ========================================
-
-                            echo "GitOps PR Merge 완료 대기: #${PR_NUMBER}"
-
-                            MAX_RETRIES=30
-                            RETRY_INTERVAL=10
+                            MAX_RETRIES=10
+                            RETRY_INTERVAL=5
                             RETRY_COUNT=0
                             MERGED="false"
 
                             while true; do
 
-                                PR_STATUS="$(curl --fail-with-body \
+                                MERGE_RESPONSE="$(curl --fail-with-body \
                                   -sS \
+                                  -X PUT \
                                   -H "Authorization: Bearer ${GIT_TOKEN}" \
                                   -H 'Accept: application/vnd.github+json' \
-                                  "https://api.github.com/repos/${GITOPS_API_REPO}/pulls/${PR_NUMBER}")"
+                                  "https://api.github.com/repos/${GITOPS_API_REPO}/pulls/${PR_NUMBER}/merge" \
+                                  -d '{"merge_method":"squash"}' \
+                                  || true)"
 
-
-                                MERGED="$(printf '%s' "$PR_STATUS" | node -pe \
-                                  'JSON.parse(require("fs").readFileSync(0, "utf8")).merged')"
-
+                                MERGED="$(printf '%s' "$MERGE_RESPONSE" | node -pe \
+                                  'JSON.parse(require("fs").readFileSync(0, "utf8")).merged' \
+                                  2>/dev/null || echo false)"
 
                                 if [ "$MERGED" = "true" ]; then
 
@@ -779,16 +736,16 @@ pipeline {
 
                                 if [ "$RETRY_COUNT" -ge "$MAX_RETRIES" ]; then
 
-                                    echo "GitOps PR Merge 대기 시간 초과"
+                                    echo "GitOps PR Merge 실패: ${MERGE_RESPONSE}"
 
                                     echo "임시 브랜치는 삭제하지 않습니다."
 
-                                    break
+                                    exit 1
 
                                 fi
 
 
-                                echo "아직 Merge되지 않았습니다. ${RETRY_INTERVAL}초 후 재확인..."
+                                echo "Merge 실패, ${RETRY_INTERVAL}초 후 재시도..."
 
                                 sleep "$RETRY_INTERVAL"
 
