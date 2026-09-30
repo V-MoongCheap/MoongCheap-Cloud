@@ -606,11 +606,19 @@ pipeline {
 
                             if [ "$MERGED" = "true" ]; then
 
-                                echo "GitOps 임시 브랜치 삭제: ${BRANCH_NAME}"
+                                if git ls-remote --exit-code --heads origin "$BRANCH_NAME" >/dev/null 2>&1; then
 
-                                git -c credential.helper= push origin --delete "$BRANCH_NAME"
+                                    echo "GitOps 임시 브랜치 삭제: ${BRANCH_NAME}"
 
-                                echo "GitOps 임시 브랜치 삭제 완료: ${BRANCH_NAME}"
+                                    git -c credential.helper= push origin --delete "$BRANCH_NAME"
+
+                                    echo "GitOps 임시 브랜치 삭제 완료: ${BRANCH_NAME}"
+
+                                else
+
+                                    echo "GitOps 임시 브랜치가 이미 삭제되었습니다: ${BRANCH_NAME}"
+
+                                fi
 
                                 echo "Merged" > ../gitops-pr-status.txt
                                 echo "Deleted" > ../gitops-branch-status.txt
