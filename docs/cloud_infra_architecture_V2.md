@@ -562,20 +562,24 @@ AI 워크로드는 **GPU Node를 사용하지 않고 CPU 기반 Pod로 구성**�
 
 ### 5.1 구성
 
-| 구성 모델 / 프레임워크 배치  |                   |              |
-| ----------------- | ----------------- | ------------ |
-| AI API Server     | FastAPI + Uvicorn | BE·AI Worker |
-| Embedding         | `[AI 파트 확정 필요]`   | BE·AI Worker |
-| 기타 AI Workload    | `[AI 파트 확정 필요]`   | BE·AI Worker |
+`[개정 2026-09-30 — MoongCheap-AI develop 코드 기준. AI 파트 최종 컨펌 필요]`
 
-- 별도의 GPU Node Group은 구성하지 않는다.
-- AI Pod는 WAS Private Subnet에 위치한 **BE·AI Worker Node Group**에 배치한다.
+| 구성 모델 / 프레임워크 배치     |                                                    |              |
+| ----------------- | -------------------------------------------------- | ------------ |
+| AI API Server     | FastAPI + Uvicorn — **Seller Demand Analysis(입찰 가이드)만 서비스**. Labeling·Clustering을 오케스트레이션하지 않음 | BE·AI Worker |
+| 1차 라벨링 (Batch)   | Rule/Alias 매칭 — **AI 모델 미사용**, K8s CronJob(매시 15분) | BE·AI Worker |
+| 2차 라벨링 (Fallback) | **Qwen2.5:7b-instruct**, Ollama 서빙 — 1차에서 처리 안 된 것만 호출, 기본 비활성화 | **LLM Worker**(4.2, `workload: llm`) |
+| 수요 클러스터링 (Batch)  | **Kiwipiepy**(형태소 분석) + **multilingual-e5-small**(임베딩, 컨테이너 내 로드) + **Amazon OpenSearch**(저장·검색) — K8s CronJob(매시 45분) | BE·AI Worker (OpenSearch는 6.1의 관리형 서비스) |
+
+- 별도의 GPU Node Group은 구성하지 않는다. LLM(Ollama)도 **CPU 추론**이며 vLLM·GPU는 사용하지 않는다.
+- AI API Server·1차 라벨링·수요 클러스터링은 WAS Private Subnet의 **BE·AI Worker Node Group**에 배치한다. 2차 라벨링(Ollama)은 리소스 요구량 때문에 **전용 LLM Worker**(4.2)에 배치한다.
+- AI API Server·CronJob은 서로 독립 프로세스다 — API Server가 Labeling·Clustering을 호출하는 구조가 아니다.
 - AI Workload의 CPU / Memory Request 및 Limit은 AI 파트의 실제 요구 사양을 기준으로 결정한다.
 - AI Pod의 Replica 및 HPA 정책은 초기 부하 테스트 결과를 기준으로 확정한다.
 
 ### 5.2 Pod 배치 및 Resource
 
-Helm Chart에서 AI Workload를 명확하게 배치할 수 있도록 BE·AI Worker Node Group의 Label을 사용한다.
+Helm Chart에서 AI Workload를 명확하게 배치할 수 있도록 BE·AI Worker Node Group의 Label을 사용한다. **단, 2차 라벨링(Ollama)은 이 Label이 아니라 4.2의 LLM Worker `nodeSelector: {workload: llm}` + `toleration`을 따른다.**
 
 ```yaml
 nodeSelector:
