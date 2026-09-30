@@ -8,4 +8,3 @@ helm:
   chart: ollama
   version: 1.79.0
 
-ignoreReplicas: true
