@@ -24,7 +24,7 @@ variable "db_subnet_ids" {
   description = "DB Subnet Group에 사용할 DB Private Subnet ID 목록 (AZ당 1개 이상, modules/vpc 출력값)"
 }
 
-# 아키텍처 설계서_V2 6.2 RDS PostgreSQL + pgvector 스펙
+# 아키텍처 설계서_V2 6.2 RDS PostgreSQL 스펙
 variable "engine_version" {
   type        = string
   description = "PostgreSQL 엔진 버전 (문서상 [확정 필요], 이 계정/리전에 가용한 16.9를 기본값으로 둠)"

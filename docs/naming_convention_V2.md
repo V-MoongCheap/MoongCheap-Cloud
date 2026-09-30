@@ -21,7 +21,7 @@ Repository/Directory 구조, 환경변수 및 Secret 관리 방식**을 정의�
     -   FE Worker (Managed Node Group)
     -   BE·AI Worker (Karpenter)
 -   **Data**
-    -   Amazon RDS for PostgreSQL + pgvector
+    -   Amazon RDS for PostgreSQL
     -   Amazon S3
     -   Amazon ElastiCache Redis
     -   Amazon OpenSearch Service
@@ -253,7 +253,6 @@ Storage Type   = gp3
 Multi-AZ       = Enabled
 Public Access  = Disabled
 Port           = 5432
-pgvector       = PostgreSQL Extension
 ```
 
 Database Name, Master Username, PostgreSQL Version 및 Backup/Deletion
