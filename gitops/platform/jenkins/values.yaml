@@ -58,6 +58,13 @@ controller:
                     label: "node-builder"
                     namespace: "jenkins"
                     serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
                     containers:
                       - name: "builder"
                         image: "node:20"
@@ -86,6 +93,13 @@ controller:
                     label: "java-builder"
                     namespace: "jenkins"
                     serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
                     containers:
                       # 2026-09-26 실측(에이전트 Pod 46개): 단계마다 4개 컨테이너 중 하나만 일한다.
                       # Pod 합계를 가장 무거운 단계(Image: kaniko+security+jnlp ≈ 2.9Gi)에 맞춤.
@@ -111,6 +125,13 @@ controller:
                     label: "python-builder"
                     namespace: "jenkins"
                     serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
                     containers:
                       - name: "builder"
                         image: "python:3.11-slim"
