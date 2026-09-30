@@ -365,7 +365,7 @@ pipeline {
                 container('builder') {
                     withCredentials([
                         usernamePassword(
-                            credentialsId: 'gitops-repo-push',
+                            credentialsId: 'moongcheap-jenkins-ci',
                             usernameVariable: 'GIT_USER',
                             passwordVariable: 'GIT_TOKEN'
                         )
