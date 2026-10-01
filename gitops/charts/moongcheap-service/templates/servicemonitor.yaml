@@ -1,0 +1,18 @@
+# gitops/charts/moongcheap-service/templates/servicemonitor.yaml
+{{- if .Values.metrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "moongcheap-service.fullname" . }}
+  labels:
+    {{- include "moongcheap-service.labels" . | nindent 4 }}
+    release: kube-prometheus-stack   # kube-prometheus-stack의 serviceMonitorSelector 기본값과 매칭
+spec:
+  selector:
+    matchLabels:
+      {{- include "moongcheap-service.selectorLabels" . | nindent 6 }}
+  endpoints:
+    - port: http
+      path: {{ .Values.metrics.path }}
+      interval: {{ .Values.metrics.interval }}
+{{- end }}

@@ -1,0 +1,25 @@
+# gitops/platform/envoy-gateway/values.yaml
+#
+# envoyproxy/gateway-helm(v1.9.1) 기준. 실제 EKS 클러스터는 1.36이므로
+# 로컬 테스트(K8s 1.29)에서 필요했던
+#   crds.gatewayAPI.safeUpgradePolicy.enabled: false
+# 워크어라운드는 여기서는 넣지 않는다 — ValidatingAdmissionPolicy(admissionregistration.k8s.io/v1)가
+# 1.30+에서 정식 GA라 1.36에서는 CRD/VAP 설치가 문제 없이 된다 (2026-09-17 describe-cluster 기준 1.36 확인).
+#
+# 데이터플레인(Envoy 자체) 쪽 설정(nodeSelector, replicas, service 등)은 여기가 아니라
+# resources/envoyproxy.yaml(EnvoyProxy CR)에서 관리한다. 여기 values.yaml은 컨트롤플레인
+# (envoy-gateway 컨테이너) Deployment 설정만 다룬다.
+ 
+deployment:
+  replicas: 1
+  envoyGateway:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        memory: 1024Mi
+  pod:
+    nodeSelector:
+      workload: system
+ 

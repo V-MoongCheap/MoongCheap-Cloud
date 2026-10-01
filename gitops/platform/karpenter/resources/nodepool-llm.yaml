@@ -1,0 +1,63 @@
+# LLM worker 전용 NodePool (Ollama, CPU 추론).
+# 요청 스펙: CPU req 2 / limit 4, Mem req 8Gi / limit 12Gi, GPU 없음, 동시 1, 매시 15분 labeling 연동.
+# - be-ai(t3.large)는 할당 가능 CPU가 ~1.73이라 req 2가 들어가지 않는다 → 4 vCPU 노드를 따로 둔다.
+# - be-ai에 인스턴스 타입만 섞으면 taint를 걸 수 없어 다른 Pod가 m6i에 올라타고,
+#   do-not-disrupt(ai)가 붙으면 m6i가 내려가지 않는다 → NodePool을 분리하고 taint로 격리.
+# - Pod가 없으면 노드도 0대. LLM Pod가 뜰 때만 1대 생기고 끝나면 회수한다.
+# - Close 스크립트(terraform/scripts/mgmt/common.sh KARPENTER_NODEPOOL_NAMES)에도 이 이름이 있어야
+#   Close 때 같이 종료된다.
+apiVersion: karpenter.sh/v1
+kind: NodePool
+
+metadata:
+  name: llm
+
+spec:
+  template:
+    metadata:
+      labels:
+        workload: llm
+
+    spec:
+      nodeClassRef:
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: llm
+
+      # LLM Pod만 올라오게 한다. LLM Pod에 toleration + nodeSelector {workload: llm} 필요.
+      taints:
+        - key: workload
+          value: llm
+          effect: NoSchedule
+
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values:
+            - amd64
+
+        - key: kubernetes.io/os
+          operator: In
+          values:
+            - linux
+
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values:
+            - on-demand
+
+        # 4 vCPU / 16GiB. t3.xlarge는 CPU를 계속 쓰면 크레딧이 소진돼(unlimited면 추가 과금) LLM 추론에 부적합.
+        - key: node.kubernetes.io/instance-type
+          operator: In
+          values:
+            - m6i.xlarge
+
+  # 동시 실행 1 → 노드 1대 분량만 허용.
+  limits:
+    cpu: "4"
+    memory: 16Gi
+
+  # 배치가 끝나 비면 바로 회수. 매시 한 번 뜨므로 비어 있는 시간을 짧게 둔다.
+  disruption:
+    consolidationPolicy: WhenEmpty
+    consolidateAfter: 2m

@@ -1,23 +1,66 @@
+# Cloud Infra Git 협업 Convention & Repository Directory Guide
+
 ## 1. 문서 목적
 
-본 문서는 클라우드 인프라 파트에서 Terraform, Kubernetes, Helm, ArgoCD, Jenkins, Observability 등의 코드를 공동 관리하기 위한 Git 협업 규칙과 Repository / Directory 작성 기준을 정의한다.
+본 문서는 클라우드 인프라 파트에서 Terraform, Kubernetes, Helm, ArgoCD,
+Jenkins, Observability 등의 코드와 설정을 공동 관리하기 위한 Git 협업
+규칙과 Repository / Directory 작성 기준을 정의한다.
 
 주요 목적은 다음과 같다.
 
-- 여러 팀원의 동시 작업 시 코드 충돌 최소화
-- 인프라 변경 이력 추적
-- PR 기반 코드 리뷰 및 변경 검증
-- 담당 영역별 코드 관리 기준 통일
-- Terraform IaC 및 ArgoCD GitOps의 재현성 확보
-- 잘못된 인프라 변경이 실제 환경에 직접 반영되는 상황 방지
+-   여러 팀원의 동시 작업 시 코드 충돌 최소화
+-   인프라 변경 이력 추적
+-   PR 기반 코드 리뷰 및 변경 검증
+-   담당 영역별 코드 관리 기준 통일
+-   Terraform IaC 및 ArgoCD GitOps의 재현성 확보
+-   잘못된 인프라 변경의 직접 반영 방지
 
----
+------------------------------------------------------------------------
 
-# 2. Branch 전략
+## 2. Repository 구조
 
-## 2.1 Branch 구조
+Cloud Infra Repository는 다음 구조를 기준으로 관리한다.
 
+``` text
+MoongCheap-Cloud/
+├── terraform/
+├── gitops/
+│   ├── charts/
+│   ├── values/
+│   ├── platform/
+│   ├── argocd/
+│   └── jenkins/
+├── docs/
+├── .gitignore
+└── README.md
 ```
+
+최상위 Directory는 `terraform/`, `gitops/`, `docs/` 세 개로 구성하며, 이
+중 인프라 코드를 담는 Directory는 **`terraform/`(AWS 인프라
+프로비저닝)** 과 **`gitops/`(Kubernetes 배포 및 CI/CD)** 두 개로
+유지한다. Kubernetes와 CI/CD 관련 구성은 모두 `gitops/` 아래에서
+관리한다.
+
+| Directory | 역할 | 담당 |
+| --- | --- | --- |
+| `terraform/` | AWS / KT Cloud IaC 및 Terraform 관리 | 최상우 / 양재혁 |
+| `gitops/` | Helm Chart, ArgoCD Application, Jenkins Pipeline, Observability 등 Kubernetes / CI/CD 구성 전체 | 윤성 / 김준우 / 부학성 |
+| `docs/` | Cloud Infra 설계 및 운영 문서 | 공통 |
+
+Observability는 upstream Helm Chart로 배포하고 ArgoCD가 동기화하므로 별도
+최상위 Directory를 두지 않고 `gitops/platform/monitoring/`,
+`gitops/platform/observability/`에서 `config.yaml + values.yaml`로 관리한다
+(12절).
+
+세부 Directory는 실제 구현 단계에서 필요한 구성요소에 따라 확장한다.
+
+------------------------------------------------------------------------
+
+## 3. Branch 전략
+
+### 3.1 Branch 구조
+
+``` text
 main
  │
  ├── develop
@@ -31,116 +74,179 @@ main
  └── hotfix/*
 ```
 
-일반적인 개발은 `develop`를 기준으로 수행하고, 현재 `main` 기준 배포 상태를 긴급하게 수정해야 하는 경우에만 `hotfix/*`를 사용한다.
+일반적인 작업은 `develop`을 기준으로 수행한다.
 
----
+현재 `main` 기준 배포 상태를 긴급하게 수정해야 하는 경우에만
+`hotfix/*`를 사용한다.
 
-## 2.2 main
+### 3.2 main
 
 최종적으로 검증된 안정 상태를 관리한다.
 
-- Demo / Production 배포 기준 Branch
-- 직접 Push 금지
-- 반드시 Pull Request를 통해 Merge
-- CI 검증을 통과한 코드만 Merge
-- Force Push 및 Branch 삭제 금지
-- 언제든 배포 가능한 상태 유지
+-   Demo / Production 배포 기준 Branch
+-   직접 Push 금지
+-   반드시 Pull Request를 통해 Merge
+-   최소 1명 이상의 Review 후 Merge
+-   CI 구축 이후 CI 검증 통과 필수
+-   Force Push 금지
+-   Branch 삭제 금지
+-   언제든 배포 가능한 상태 유지
 
----
+`develop → main` PR은 **양재혁의 최종 Review 및 Merge**를 원칙으로 한다.
 
-## 2.3 develop
+### 3.3 develop
 
 클라우드 인프라 파트의 통합 개발 Branch이다.
 
-- 일반 작업 Branch의 기본 Merge 대상
-- 직접 Push 금지
-- PR + CI + Review 이후 Merge
-- 개발 환경 기준의 통합 상태 유지
+-   일반 작업 Branch의 기본 Merge 대상
+-   직접 Push 금지
+-   PR + Review 이후 Merge
+-   CI 구축 이후 CI 검증 추가
+-   개발 환경 기준 통합 상태 유지
 
 일반적인 작업 흐름:
 
-```
+``` text
 develop
- ↓
-feat/* · fix/* · refactor/*
- ↓
+   ↓
+작업 Branch 생성
+   ↓
 작업 및 검증
- ↓
+   ↓
 PR
- ↓
+   ↓
+담당 영역 Review
+   ↓
 develop
- ↓
+   ↓
 통합 검증
- ↓
+   ↓
 PR
- ↓
+   ↓
+양재혁 Review
+   ↓
 main
 ```
 
----
+### 작업 Branch 생성 방법
 
-## 2.4 hotfix
+Repository를 최초 Clone한 후 일반 작업은 `develop`을 기준으로 작업 Branch를 생성한다.
 
-현재 `main` 기준으로 배포된 환경에서 즉시 수정해야 하는 문제가 발생했을 때 사용한다.
+최초 Clone 시:
 
-`hotfix/*`는 `develop`가 아닌 **`main`에서 분기한다.**
+```bash
+git clone <repository-url>
+cd MoongCheap-Cloud
 
+git checkout develop
+git pull origin develop
 ```
+
+이후 새로운 작업을 시작할 때는 항상 로컬 `develop`을 최신 상태로 갱신한 후 작업 Branch를 생성한다.
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b <type>/<작업-내용>
+```
+
+예:
+
+```bash
+git checkout develop
+git pull origin develop
+git checkout -b feat/terraform-vpc
+```
+
+작업 완료 후 변경사항을 Commit하고 작업 Branch를 원격 Repository에 Push한다.
+
+```bash
+git add .
+git commit -m "feat(vpc): add vpc infrastructure"
+git push -u origin feat/terraform-vpc
+```
+
+이후 GitHub에서 작업 Branch를 `develop`으로 Merge하는 Pull Request를 생성한다.
+
+```text
+feat/terraform-vpc
+        ↓
+Pull Request
+        ↓
+담당 영역 Review
+        ↓
+develop
+```
+
+`main` 또는 `develop`에서 직접 작업하거나 직접 Push하지 않는다.
+
+### 3.4 hotfix
+
+현재 `main` 기준으로 배포된 환경에서 즉시 수정해야 하는 문제가 발생했을
+때 사용한다.
+
+`hotfix/*`는 `develop`이 아닌 **`main`에서 분기한다.**
+
+``` text
 main
  ↓
 hotfix/*
  ↓
 수정
  ↓
-CI / Review
+검증 / Review
  ↓
 PR
  ↓
 main
- ↓
-배포
 ```
 
 Hotfix 완료 후 변경사항을 반드시 `develop`에도 동기화한다.
 
-```
+``` text
 hotfix/* → main
              │
              └────→ develop 동기화
 ```
 
-이를 통해 이후 `develop → main` Merge 과정에서 Hotfix가 누락되거나 충돌하는 것을 방지한다.
+이를 통해 이후 `develop → main` Merge 과정에서 Hotfix가 누락되거나
+충돌하는 것을 방지한다.
 
-### fix와 hotfix의 차이
+#### fix와 hotfix의 차이
 
-| Branch | 분기 | Merge | 용도 |
-| --- | --- | --- | --- |
-| `fix/*` | `develop` | `develop` | 개발 과정에서 발견된 일반 오류 |
-| `hotfix/*` | `main` | `main` + `develop` 동기화 | 현재 배포 버전의 긴급 수정 |
+  -----------------------------------------------------------------------
+  Branch            분기              Merge             용도
+  ----------------- ----------------- ----------------- -----------------
+  `fix/*`           `develop`         `develop`         개발 과정에서
+                                                        발견된 일반 오류
 
----
+  `hotfix/*`        `main`            `main` +          현재 배포 버전의
+                                      `develop` 동기화  긴급 수정
+  -----------------------------------------------------------------------
 
-# 3. Branch Naming Convention
+------------------------------------------------------------------------
+
+## 4. Branch Naming Convention
 
 작업 Branch는 다음 형식을 사용한다.
 
-```
+``` text
 <type>/<작업-내용>
 ```
 
-| Type | 용도 |
-| --- | --- |
-| `feat` | 신규 기능·리소스 추가 |
-| `fix` | 개발 중 오류 수정 |
-| `refactor` | 기능 변화 없는 구조 개선 |
-| `docs` | 문서 변경 |
-| `test` | 테스트 및 검증 |
-| `chore` | 설정·버전 등 관리 작업 |
-| `hotfix` | 배포 상태의 긴급 수정 |
+  Type         용도
+  ------------ --------------------------
+  `feat`       신규 기능·리소스 추가
+  `fix`        개발 중 오류 수정
+  `refactor`   기능 변화 없는 구조 개선
+  `docs`       문서 변경
+  `test`       테스트 및 검증
+  `chore`      설정·버전 등 관리 작업
+  `hotfix`     배포 상태 긴급 수정
 
 예:
 
-```
+``` text
 feat/terraform-vpc
 feat/eks-nodegroup
 feat/helm-backend
@@ -157,19 +263,19 @@ hotfix/argocd-sync
 
 Branch 이름은 영문 소문자를 사용하며 단어는 `-`로 구분한다.
 
----
+------------------------------------------------------------------------
 
-# 4. Commit Convention
+## 5. Commit Convention
 
 Conventional Commits 형식을 기반으로 한다.
 
-```
+``` text
 <type>(<scope>): <description>
 ```
 
 예:
 
-```
+``` text
 feat(vpc): add private subnet
 feat(eks): add managed node group
 feat(helm): add backend chart
@@ -186,47 +292,55 @@ ci(jenkins): add terraform validation
 
 ### Commit Type
 
-| Type | 의미 |
-| --- | --- |
-| `feat` | 신규 기능·리소스 |
-| `fix` | 오류 수정 |
-| `refactor` | 구조 개선 |
-| `docs` | 문서 변경 |
-| `test` | 테스트 |
-| `chore` | 기타 관리 |
-| `ci` | CI 설정 |
-| `build` | Build 관련 변경 |
-| `revert` | 이전 변경 복구 |
+  Type         의미
+  ------------ ------------------
+  `feat`       신규 기능·리소스
+  `fix`        오류 수정
+  `refactor`   구조 개선
+  `docs`       문서 변경
+  `test`       테스트
+  `chore`      기타 관리
+  `ci`         CI 설정
+  `build`      Build 관련 변경
+  `revert`     이전 변경 복구
 
 Scope는 변경 영역을 기준으로 작성한다.
 
-```
+``` text
 vpc
 eks
 ecr
 iam
 s3
 nat
+rds
+elasticache
+opensearch
+secrets
+cloudflare
+budget
 terraform
+gitops
 helm
 argocd
 jenkins
 monitoring
 backup
+docs
 ktcloud
 ```
 
 하나의 Commit에는 가능한 하나의 논리적 변경만 포함한다.
 
----
+------------------------------------------------------------------------
 
-# 5. Pull Request Convention
+## 6. Pull Request Convention
 
 `develop`, `main` 변경은 반드시 Pull Request를 통해 진행한다.
 
 PR 제목은 Commit Convention과 동일한 형식을 권장한다.
 
-```
+``` text
 feat(vpc): add network infrastructure
 fix(eks): fix node group configuration
 hotfix(argocd): fix sync configuration
@@ -234,7 +348,7 @@ hotfix(argocd): fix sync configuration
 
 ### PR Template
 
-```markdown
+``` markdown
 ## 작업 내용
 
 - 주요 변경 사항
@@ -245,13 +359,12 @@ hotfix(argocd): fix sync configuration
 
 ## 영향 범위
 
-- [ ] AWS Infrastructure
-- [ ] Terraform
+- [ ] Terraform / AWS
 - [ ] Kubernetes / Helm
-- [ ] CI/CD
+- [ ] ArgoCD / CI/CD
 - [ ] Observability
 - [ ] KT Cloud
-- [ ] Application Deployment
+- [ ] Documentation
 
 ## 검증
 
@@ -266,7 +379,7 @@ hotfix(argocd): fix sync configuration
 
 Terraform 변경 시:
 
-```
+``` bash
 terraform fmt
 terraform validate
 terraform plan
@@ -274,38 +387,85 @@ terraform plan
 
 Helm 변경 시:
 
-```
+``` bash
 helm lint
 helm template
 ```
 
----
+------------------------------------------------------------------------
 
-# 6. Review / Merge 규칙
+## 7. Review / Merge 규칙
 
-`develop`, `main` Merge 전 최소 1명 이상의 Review를 받는 것을 기본으로 한다.
+### 7.1 작업 Branch → develop
 
-가능하면 해당 변경 영역 담당자가 Review한다.
+변경 영역에 따라 담당자가 서로 Review한다.
 
+| 변경 영역 | 담당 | Review 원칙 |
+| --- | --- | --- |
+| `terraform/**` | 최상우 / 양재혁 | 상호 Review |
+| `gitops/**` | 윤성 / 김준우 / 부학성 | 상호 Review |
+
+예를 들어:
+
+``` text
+최상우
+  │
+  └─ feat/terraform-vpc
+           │
+           │ PR
+           ▼
+        develop
+           ▲
+           │
+       양재혁 Review
 ```
-Terraform / AWS
-→ Infrastructure 담당
 
-Kubernetes / Helm / ArgoCD
-→ Kubernetes / GitOps 담당
+반대로 양재혁이 `terraform/**`을 변경했다면 최상우가 Review한다.
 
-Jenkins
-→ CI/CD 담당
+하나의 PR이 여러 담당 영역을 동시에 변경하는 경우에는 **각 영역 담당자의
+확인을 받는 것을 원칙**으로 한다.
 
-Prometheus / Loki / Grafana
-→ Observability 담당
+`terraform/scripts/mgmt/**`는 `develop` 머지 후 5분 이내에 KT Cloud MGMT
+서버가 가져가 cron으로 실행한다(11절). `schedule.csv` 한 줄 변경도 실제
+Open/Close 시각이 바뀌고, "지금 있어야 할 상태"가 바뀌는 변경은 **머지 직후
+노드를 내리거나 올린다**(reconcile). 이 경로가 포함된 PR은 반드시 `terraform/**`
+담당자 Review를 거치고, close를 유발하는 변경은 머지 시각을 팀에 알린 뒤 머지한다.
+
+`docs/**` 등 공통 영역은 변경 내용과 관련된 담당자가 Review한다.
+
+### 7.2 develop → main
+
+개발 및 통합 검증이 완료된 변경사항은 다음 흐름으로 반영한다.
+
+``` text
+develop
+   │
+   │ Pull Request
+   ▼
+ main
+   ▲
+   │
+양재혁 Review / Merge
 ```
 
-파트장이 모든 PR을 직접 승인하는 중앙집중형 방식은 지양한다.
+-   팀원이 `develop → main` PR 생성
+-   양재혁 최종 Review
+-   이상이 없을 경우 `main` Merge
+-   Demo / Production 기준 상태 갱신
+
+현재 개인 Repository 단계에서는 GitHub Ruleset만으로 담당자별 Review
+정책 전체를 강제하지 않고 **팀 협업 규칙으로 운영한다.**
+
+향후 Organization Repository로 이전한 이후에는 Team / Required Reviewer
+정책을 적용하여 담당 영역별 Review를 GitHub에서 강제한다.
+
+------------------------------------------------------------------------
+
+## 8. Merge 방식
 
 기본 Merge 방식은 **Squash Merge**를 사용한다.
 
-```
+``` text
 feat(vpc): add subnet
 fix(vpc): fix cidr
 fix(vpc): fix route
@@ -317,17 +477,20 @@ feat(vpc): add vpc network infrastructure
 
 Merge 완료 후 작업 Branch는 삭제한다.
 
----
+이를 통해 `develop`, `main`의 Commit History를 작업 단위로 유지한다.
 
-# 7. Branch Protection
+------------------------------------------------------------------------
+
+## 9. Branch Protection / Ruleset
+
+현재 Repository에는 `main`, `develop`을 대상으로 기본 보호 규칙을
+적용한다.
 
 ### main
 
-```
+``` text
 Require Pull Request
 Require 1 Approval
-Require Status Checks
-Require Conversation Resolution
 
 Block Force Push
 Block Branch Deletion
@@ -335,118 +498,299 @@ Block Branch Deletion
 
 ### develop
 
-```
+``` text
 Require Pull Request
 Require 1 Approval
-Require Status Checks
 
 Block Force Push
+Block Branch Deletion
 ```
 
----
+CI/CD 구축 이후 다음 항목을 추가한다.
 
-# 8. Repository / Directory 구조
-
-```
-infra-repository/
-│
-├── terraform/
-├── helm/
-├── argocd/
-├── jenkins/
-├── observability/
-├── scripts/
-├── docs/
-│
-├── .github/
-│   ├── CODEOWNERS
-│   └── pull_request_template.md
-│
-├── .gitignore
-└── README.md
+``` text
+Require Status Checks
 ```
 
----
+이를 통해 Terraform Validation, Helm Validation, Jenkins Pipeline 등의
+검증 결과와 Merge 조건을 연동한다.
 
-# 9. Terraform Directory
+------------------------------------------------------------------------
+
+## 10. Organization 이전 후 Required Reviewer 정책
+
+Repository를 GitHub Organization으로 이전한 이후에는 담당 영역별 GitHub
+Team을 구성하고 Required Reviewer 정책을 적용한다.
+
+목적은 현재 팀 내부 규칙으로 운영하는 담당 영역별 상호 Review 및 `main`
+최종 Review를 GitHub 정책으로 강제하는 것이다.
+
+### 10.1 Reviewer Team 구성
+
+| GitHub Team | 구성원 | 담당 영역 |
+| --- | --- | --- |
+| `terraform-reviewers` | 최상우 / 양재혁 | `terraform/**` |
+| `gitops-reviewers` | 윤성 / 김준우 / 부학성 | `gitops/**` |
+| `main-reviewers` | 양재혁 | `main` 최종 승인 |
+
+각 Team에는 Repository Review에 필요한 권한을 부여한다.
+
+### 10.2 develop Required Reviewer
+
+`develop` Ruleset에는 변경 Directory에 따라 담당 Team의 승인을
+요구하도록 설정한다.
+
+``` text
+Target Branch: develop
+
+terraform/**
+→ terraform-reviewers
+→ Required Approval: 1
+
+gitops/**
+→ gitops-reviewers
+→ Required Approval: 1
+```
+
+목표 Review 구조:
+
+``` text
+terraform/**
+최상우 작업 → 양재혁 Review
+양재혁 작업 → 최상우 Review
+
+gitops/**
+윤성 / 김준우 / 부학성 중
+작업자 외 1명 Review
+```
+
+`develop` Ruleset은 다음 정책을 기준으로 한다.
+
+``` text
+Require Pull Request
+Require 1 Approval
+Require Required Reviewer
+Require approval of the most recent reviewable push
+
+Block Force Push
+Block Branch Deletion
+```
+
+CI/CD 구축 이후에는 다음 항목을 추가한다.
+
+``` text
+Require Status Checks
+```
+
+### 10.3 main Required Reviewer
+
+`main`은 변경 Directory와 관계없이 **양재혁의 최종 승인**을 요구한다.
+
+``` text
+Target Branch: main
+
+Required Reviewer:
+→ main-reviewers
+→ 양재혁
+→ Required Approval: 1
+```
+
+전체 흐름:
+
+``` text
+작업 Branch
+     │
+     │ 담당 영역 Reviewer
+     ▼
+  develop
+     │
+     │ PR
+     ▼
+main-reviewers
+  양재혁
+     │
+     ▼
+    main
+```
+
+`main` Ruleset은 다음 정책을 기준으로 한다.
+
+``` text
+Require Pull Request
+Require 1 Approval
+Require Required Reviewer
+
+Block Force Push
+Block Branch Deletion
+```
+
+CI/CD 구축 이후에는 다음 항목을 추가한다.
+
+``` text
+Require Status Checks
+```
+
+### 10.4 CODEOWNERS
+
+Organization 이전 이후 필요한 경우 `.github/CODEOWNERS`를 사용할 수
+있다.
+
+다만 본 Repository의 Merge 승인 정책은 **Ruleset의 Required Reviewer를
+기준**으로 관리하며, CODEOWNERS는 코드 소유 영역 및 자동 Review 요청을
+명시하는 보조 수단으로 사용한다.
+
+예:
+
+``` text
+/terraform/                            @organization/terraform-reviewers
+/gitops/                               @organization/gitops-reviewers
+```
+
+CODEOWNERS 파일은 `main`, `develop`에서 서로 다른 내용으로 관리하지 않고
+동일하게 유지한다.
+
+이를 통해 `develop → main` Merge 과정에서 CODEOWNERS 파일 자체가 Branch
+간 차이로 발생하는 것을 방지한다.
+
+------------------------------------------------------------------------
+
+## 11. Terraform Directory
 
 Terraform은 재사용 가능한 Module과 환경별 Root Module을 분리한다.
 
-```
+Module 구성은 **네이밍 규약서 4절**을 기준으로 한다.
+
+``` text
 terraform/
 ├── modules/
 │   ├── vpc/
+│   ├── nat/
 │   ├── eks/
 │   ├── ecr/
 │   ├── iam/
+│   ├── rds/
 │   ├── s3/
-│   └── nat/
+│   ├── secrets/
+│   ├── elasticache/
+│   ├── opensearch/
+│   ├── cloudflare/
+│   ├── budget-alert/
+│   └── karpenter/
 │
-└── envs/
-    ├── develop/
-    │   ├── backend.tf
-    │   ├── providers.tf
-    │   ├── main.tf
-    │   ├── variables.tf
-    │   ├── outputs.tf
-    │   └── terraform.tfvars.example
-    │
-    └── prod/
-        └── ...
+├── envs/
+│   ├── develop/
+│   │   ├── backend.tf
+│   │   ├── providers.tf
+│   │   ├── main.tf
+│   │   ├── variables.tf
+│   │   ├── outputs.tf
+│   │   └── terraform.tfvars.example
+│   │
+│   └── prod/
+│       └── ...
+│
+└── scripts/                      # Terraform 전후 보조 스크립트 (네이밍 규약서 4절)
+    ├── pre-destroy-karpenter.sh
+    └── mgmt/                     # KT Cloud MGMT 서버 Open/Close 자동화 — develop 머지 즉시 운영 반영
+        ├── common.sh
+        ├── open-infra.sh
+        ├── close-infra.sh
+        ├── sync-repo.sh
+        ├── update-cron.sh
+        ├── reconcile.sh
+        ├── schedule.csv
+        └── mgmt-iam-policy.json
 ```
 
 Module 기본 구조:
 
-```
-modules/vpc/
+``` text
+terraform/modules/vpc/
 ├── main.tf
 ├── variables.tf
 ├── outputs.tf
 └── README.md
 ```
 
----
+------------------------------------------------------------------------
 
-# 10. Helm Directory
+## 12. GitOps Directory
 
-```
-helm/
-├── frontend/
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   ├── values-develop.yaml
-│   └── templates/
+> **[개정 2026-09-17]** PR #16 구현 구조로 개정. 세부 규칙은 `gitops/README.md`와
+> 네이밍 규약서 5.6·6절이 기준이다.
+
+Kubernetes 및 CI/CD 관련 설정은 `gitops/`에서 관리한다.
+
+``` text
+gitops/
+├── charts/
+│   └── moongcheap-service/        # FE/BE/AI 공통 Helm Chart
 │
-├── backend/
-│   └── ...
+├── values/
+│   ├── base.yaml
+│   ├── env/{develop,prod}.yaml
+│   ├── services/{frontend,backend,ai}.yaml
+│   └── overrides/{develop,prod}/{frontend,backend,ai}.yaml
 │
-└── ai/
-    └── ...
+├── platform/                      # 클러스터 공통 Platform (한 세트)
+│   ├── argocd/                    # ArgoCD self-manage values (부트스트랩 후 자기 관리)
+│   ├── jenkins/
+│   ├── karpenter/
+│   │   ├── controller/            # Helm: config.yaml + values.yaml
+│   │   └── resources/             # NodePool · EC2NodeClass (raw manifest)
+│   ├── envoy-gateway/
+│   │   ├── config.yaml + values.yaml   # Helm: gateway-helm (Gateway API CRD 동봉)
+│   │   └── resources/             # GatewayClass · EnvoyProxy · Gateway · Platform HTTPRoute
+│   ├── cloudflared/               # raw Deployment + ConfigMap (Helm 아님)
+│   ├── external-secrets/
+│   │   ├── config.yaml + values.yaml   # Helm: ESO
+│   │   └── resources/             # ClusterSecretStore · ExternalSecret
+│   ├── storage/                   # StorageClass gp3 (raw manifest)
+│   ├── monitoring/{kube-prometheus-stack,loki}/
+│   └── observability/{alloy-logs,alloy-metrics}/
+│   # Helm Component: config.yaml(chart 좌표) + values.yaml — applicationset-platform이 config.yaml을 자동 탐색
+│   # raw manifest(resources/, cloudflared/, storage/): gitops/argocd/application-*.yaml 이 개별 Application으로 sync
+│
+├── argocd/
+│   ├── projects/{services,platform}-project.yaml
+│   ├── applicationset-services-develop.yaml
+│   ├── applicationset-services-prod.yaml
+│   └── applicationset-platform.yaml
+│
+├── jenkins/
+│   └── pipelines/Jenkinsfile.template
+│
+└── README.md
 ```
 
-환경 차이는 Manifest를 복제하기보다 Values를 통해 관리한다.
+`charts/`는 서비스 공통 Chart, `values/`는 서비스·환경별 설정, `platform/`은
+Platform Component(Helm `config.yaml` + `values.yaml`), `argocd/`는
+AppProject와 ApplicationSet, `jenkins/`는 Build Pipeline 정의를 관리한다.
+
+### Helm
+
+서비스는 Chart를 복제하지 않고 공통 Chart + Values Layering으로 차이를
+관리한다.
+
+``` text
+charts/moongcheap-service/values.yaml
+→ values/base.yaml
+→ values/env/<env>.yaml
+→ values/services/<service>.yaml
+→ values/overrides/<env>/<service>.yaml   # Jenkins가 image.tag를 갱신
+```
+
+Platform Component는 `platform/<…>/config.yaml`(chart 정보)과 `values.yaml`
+두 파일로 관리하며, `config.yaml`을 추가하면 ApplicationSet이 자동으로
+Application을 만든다.
 
 Secret 값은 Values에 직접 저장하지 않는다.
 
----
-
-# 11. ArgoCD Directory
-
-```
-argocd/
-├── develop/
-│   ├── frontend.yaml
-│   ├── backend.yaml
-│   ├── ai.yaml
-│   └── observability.yaml
-│
-└── prod/
-    └── ...
-```
+### ArgoCD
 
 GitOps 변경 흐름:
 
-```
+``` text
 Git 변경
    ↓
 PR / Review
@@ -458,69 +802,83 @@ ArgoCD Sync
 EKS
 ```
 
-Rollback은 Git 변경 이력이 남도록 다음 방식을 기본으로 한다.
+Rollback은 Git 변경 이력이 남도록 `git revert`를 기본으로 한다.
 
-```
-문제 발생
-   ↓
-Git revert
-   ↓
-ArgoCD Sync
-   ↓
-이전 Desired State 복구
-```
+------------------------------------------------------------------------
 
----
+## 13. Observability Directory
 
-# 12. Jenkins / Observability Directory
+Observability Stack은 upstream Helm Chart(kube-prometheus-stack, loki,
+alloy)로 배포하고 ArgoCD Platform ApplicationSet이 동기화하므로 별도 최상위
+Directory를 두지 않고 `gitops/platform/` 아래에서 관리한다.
 
-```
-jenkins/
-├── Jenkinsfile
-├── pipelines/
-└── scripts/
+``` text
+gitops/platform/
+├── monitoring/
+│   ├── kube-prometheus-stack/{config,values}.yaml
+│   └── loki/{config,values}.yaml
+└── observability/
+    ├── alloy-logs/{config,values}.yaml
+    └── alloy-metrics/{config,values}.yaml
 ```
 
+Prometheus Rule, Grafana Dashboard 등 추가 설정은 각 Component의
+`values.yaml`(또는 같은 디렉터리의 보조 파일)로 Git에서 관리한다.
+ArgoCD Application은 `platform/**/config.yaml` 자동 탐색으로 생성되므로
+환경별 Application 파일을 따로 두지 않는다.
+
+------------------------------------------------------------------------
+
+## 14. Documentation Directory
+
+프로젝트 관련 클라우드 인프라 문서는 `docs/`에서 관리한다.
+
+현재 구조:
+
+``` text
+docs/
+├── cloud-infra-architecture/
+│   ├── architecture_v1.png
+│   └── architecture_v2.png
+├── cloud_infra_architecture.md
+├── cloud-infra-git-convention.md
+├── cost-estimation.md
+├── cost-management-runbook.md
+└── naming_convention.md
 ```
-observability/
-├── prometheus/
-├── grafana/
-│   └── dashboards/
-├── loki/
-└── alloy/
+
+문서 파일명 뒤의 `_V2`, `-v3` 등 버전 표기는 문서 개정 이력을 구분하기
+위한 것이므로 본 Convention에서는 버전 번호까지 고정하지 않는다. 실제
+파일은 최신 버전 표기를 포함한 이름을 사용한다.
+
+문서에서 사용하는 이미지 등 별도 리소스는 해당 문서와 연관된 Directory를
+생성하여 관리할 수 있다.
+
+예:
+
+``` markdown
+![클라우드 인프라 아키텍처](./cloud-infra-architecture/architecture_v2.png)
 ```
 
-Pipeline, Dashboard, Alert Rule 등의 설정도 가능한 Git에서 코드로 관리한다.
+------------------------------------------------------------------------
 
----
-
-# 13. CODEOWNERS
-
-변경 영역에 따라 자동으로 Reviewer를 지정할 수 있도록 CODEOWNERS 사용을 권장한다.
-
-```
-/terraform/       @terraform-owner
-/helm/            @kubernetes-owner
-/argocd/          @kubernetes-owner
-/jenkins/         @cicd-owner
-/observability/   @observability-owner
-```
-
-실제 GitHub 사용자 또는 Team 이름으로 변경하여 사용한다.
-
----
-
-# 14. Git 제외 대상
+## 15. Git 제외 대상
 
 다음 정보는 Repository에 Commit하지 않는다.
 
-```
+``` text
 *.tfstate
 *.tfstate.*
+!terraform/bootstrap/terraform.tfstate   # 예외 — 아래 참고
 .terraform/
+.terraform.tfstate.lock.info
 
 *.tfvars
+*.tfvars.json
 !*.tfvars.example
+
+*tfplan*                                 # plan 파일은 state와 같은 위험군 (2026-09-17 유출 사고)
+*.zip                                    # archive_file이 만드는 Lambda 배포 패키지 (빌드 산출물)
 
 .env
 .env.*
@@ -530,7 +888,17 @@ Pipeline, Dashboard, Alert Rule 등의 설정도 가능한 Git에서 코드로 �
 
 kubeconfig
 credentials
+```
 
+**예외 — `terraform/bootstrap/terraform.tfstate`는 커밋한다.** bootstrap은 remote
+backend용 S3 버킷 자체를 만드는 코드라 remote backend를 쓸 수 없고, 이 state가
+Repository에 없으면 다른 팀원이 bootstrap을 이어받을 수 없다. `envs/*`는 S3 remote
+backend(`use_lockfile = true`)를 쓰므로 state가 로컬/Git에 남지 않는다.
+
+또한 다음과 같은 Secret 정보는 어떠한 형태로도 Repository에 저장하지
+않는다.
+
+``` text
 AWS Access Key
 AWS Secret Access Key
 
@@ -539,13 +907,16 @@ API Token
 Webhook Secret
 ```
 
----
+Terraform의 `.terraform.lock.hcl`은 일반적으로 **Commit하여 Provider
+버전을 일관되게 유지**한다.
 
-# 15. Cloud Infra 작업 Workflow
+------------------------------------------------------------------------
+
+## 16. Cloud Infra 작업 Workflow
 
 ### 일반 변경
 
-```
+``` text
 Issue / 작업 할당
         ↓
 develop 최신화
@@ -560,29 +931,31 @@ Commit / Push
         ↓
 Pull Request
         ↓
-CI Validation
-        ↓
-Code Review
+담당 영역 Review
         ↓
 develop Merge
         ↓
-개발 환경 검증
+개발 환경 통합 검증
         ↓
 develop → main PR
+        ↓
+양재혁 Review
         ↓
 main Merge
 ```
 
 ### 긴급 변경
 
-```
-운영/Demo 장애
+``` text
+운영 / Demo 장애
        ↓
-main에서 hotfix/* 생성
+main 최신화
+       ↓
+hotfix/* 생성
        ↓
 수정
        ↓
-CI / Review
+검증 / Review
        ↓
 main PR
        ↓
@@ -591,19 +964,25 @@ main Merge / 배포
 develop 동기화
 ```
 
----
+------------------------------------------------------------------------
 
-# 16. 핵심 협업 원칙
+## 17. 핵심 협업 원칙
 
-1. `main`, `develop` 직접 Push 금지
-2. 일반 작업은 `develop`에서 분기
-3. 긴급 수정은 `main → hotfix/*`
-4. Hotfix 완료 후 반드시 `develop` 동기화
-5. 하나의 Branch에는 하나의 작업 목적
-6. 작은 PR 지향
-7. 최소 1인 Review
-8. Secret Commit 금지
-9. 변경 이유와 영향 범위를 PR에 기록
-10. 코드와 관련 문서를 함께 최신화
+1.  `main`, `develop` 직접 Push 금지
+2.  일반 작업은 `develop`에서 분기
+3.  `terraform/**`은 최상우 ↔ 양재혁 상호 Review
+4.  `gitops/**`는 윤성 / 김준우 / 부학성 상호 Review
+5.  `develop → main`은 양재혁 최종 Review
+6.  긴급 수정은 `main → hotfix/*`
+7.  Hotfix 완료 후 반드시 `develop` 동기화
+8.  하나의 Branch에는 하나의 작업 목적
+9.  작은 PR 지향
+10. Secret Commit 금지
+11. 변경 이유와 영향 범위를 PR에 기록
+12. 코드와 관련 문서를 함께 최신화
+13. CI/CD 구축 이후 Status Check를 Merge 조건에 추가
+14. Organization 이전 후 담당 영역별 Required Reviewer 정책을 적용하여
+    Review 규칙을 GitHub에서 강제
 
-> **작업 Branch에서 변경하고 PR에서 검증하며, Git에 기록된 상태를 기준으로 Infrastructure와 Kubernetes 환경을 관리한다.**
+> **작업 Branch에서 변경하고 담당 영역별 Review를 거쳐 `develop`에
+> 통합하며, 검증된 상태만 `main`에 반영한다.**

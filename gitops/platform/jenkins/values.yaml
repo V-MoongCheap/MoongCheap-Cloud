@@ -1,0 +1,181 @@
+# gitops/platform/jenkins/values.yaml
+#
+# 공식 jenkinsci/helm-charts(jenkins/jenkins) 기준 values 파일입니다.
+# [배포 후 기입]으로 표시된 값은 실제 AWS 계정/클러스터 정보가 나온 뒤 채워야 합니다.
+
+controller:
+  admin:
+    createSecret: true
+    existingSecret: "jenkins-admin-secret"
+
+  image:
+    repository: "jenkins/jenkins"
+    tag: "lts-jdk17"
+
+  # 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+  # 실측 max 1169Mi / p95 1045Mi. limit 4Gi는 t3.medium 노드 전체와 같아 사실상 무제한이었다.
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1200Mi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+  # limit을 4Gi→2Gi로 내리면 JVM 기본 힙(25%)이 1Gi→512Mi로 줄어든다. 50%로 기존 힙(1Gi)을 유지.
+  javaOpts: "-XX:MaxRAMPercentage=50"
+  # 재시작마다 플러그인 ~100개를 미러에서 다시 받느라 기동에 50분 이상 걸렸다(2026-09-26).
+  # 첫 초기화 뒤 $JENKINS_HOME/initialization-completed 가 생기면 이후 재시작은 다운로드를 건너뛴다.
+  # ⚠️ 이후 installPlugins에 추가한 플러그인은 자동 설치되지 않는다 — 그 파일을 지우고 재시작하거나 UI로 설치.
+  initializeOnce: true
+
+  installPlugins:
+    - kubernetes:latest
+    - workflow-aggregator:latest
+    - git:latest
+    - github:latest
+    - configuration-as-code:latest
+    - credentials-binding:latest
+    - pipeline-utility-steps:latest
+    - discord-notifier:latest
+
+  JCasC:
+    defaultConfig: false
+    
+    configScripts:
+      dynamic-agents: |
+        jenkins:
+          clouds:
+            - kubernetes:
+                name: "kubernetes"
+                serverUrl: "https://kubernetes.default"
+                namespace: "jenkins"
+                jenkinsUrl: "http://jenkins.jenkins.svc.cluster.local:8080"
+                jenkinsTunnel: "jenkins-agent.jenkins.svc.cluster.local:50000"
+                containerCapStr: "10"
+                podRetention: "never"
+                templates:
+                  - name: "node-builder"
+                    label: "node-builder"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
+                    containers:
+                      - name: "builder"
+                        image: "node:20"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+                      # docker build/push 대신 이미지를 굽는 용도.
+                      # Pod 안에 Docker 데몬을 띄우지 않고도 ECR에 Push 가능
+                      # (root 권한 불필요, 보안상 권장되는 방식).
+                      # -debug 태그 필수: 기본(distroless) 태그는 쉘이 없어서
+                      # command: cat으로 컨테이너를 띄워두는 방식 자체가 동작 안 함.
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:v1.23.2-debug"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+                      - name: "security"
+                        image: "python:3.11-slim"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+                  - name: "java-builder"
+                    label: "java-builder"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
+                    containers:
+                      # 2026-09-26 실측(에이전트 Pod 46개): 단계마다 4개 컨테이너 중 하나만 일한다.
+                      # Pod 합계를 가장 무거운 단계(Image: kaniko+security+jnlp ≈ 2.9Gi)에 맞춤.
+                      - name: "builder"
+                        image: "gradle:9.5.1-jdk25"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "700m"
+                        resourceRequestMemory: "1280Mi"   # 실측 max 1292 / p90 1197 (기존 2Gi)
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:v1.23.2-debug"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "300m"
+                        resourceRequestMemory: "1Gi"
+                      - name: "security"
+                        image: "python:3.11"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "100m"        # 스캔 단계 외 대기(p90 3Mi)
+                        resourceRequestMemory: "384Mi"    # 실측 max 569 (기존 1Gi)
+                  - name: "python-builder"
+                    label: "python-builder"
+                    namespace: "jenkins"
+                    serviceAccount: "jenkins-sa"
+                    # Karpenter가 빌드 중인 노드를 정리(consolidation)하지 못하게 한다.
+                    # 없으면 빌드 도중 노드가 underutilized로 판정돼 에이전트 Pod가 Evicted된다
+                    # (2026-09-30 08:28·09:30·09:53 세 번, backend #34·#35 중단 — Karpenter 로그 확인).
+                    # BE·FE Jenkinsfile은 inheritFrom으로 이 템플릿을 상속하므로 여기 한 곳이면 된다.
+                    annotations:
+                      - key: "karpenter.sh/do-not-disrupt"
+                        value: "true"
+                    containers:
+                      - name: "builder"
+                        image: "python:3.11-slim"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+                      - name: "kaniko"
+                        image: "gcr.io/kaniko-project/executor:v1.23.2-debug"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "500m"
+                        resourceRequestMemory: "1Gi"
+
+  # ingress:
+  #   enabled: true
+  #   hostName: "jenkins.[배포후_도메인_기입]"
+  #   annotations:
+  #     kubernetes.io/ingress.class: "nginx"
+
+  ingress:
+    enabled: false
+
+  nodeSelector:
+    workload: system
+
+
+# NOTE: serviceAccount/persistence는 controller: 안이 아니라 최상위 키여야
+# 실제로 반영된다는 걸 helm template 검증으로 확인함 (5.9.62 기준)
+serviceAccount:
+  create: true
+  name: jenkins-sa
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::840851421204:role/moongcheap-develop-jenkins-role 
+
+persistence:
+  enabled: true
+  storageClass: "gp3"
+  size: "2Gi"
+  # NOTE: 이 Chart는 PVC 이름을 Release 이름 기준으로 자동 생성해서
+  # 네이밍 규약서상 "jenkins-home-pvc"로 직접 맞추기는 어려움 — 팀 확인 필요 항목으로 남겨둠
+
+agent:
+  enabled: false
+
+rbac:
+  create: true

@@ -1,0 +1,59 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: moongcheap-services-develop
+  namespace: argocd
+
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+
+  generators:
+    - list:
+        elements:
+          - service: frontend
+          - service: backend
+          - service: ai-seller-analysis
+          - service: ai-demand-clustering
+          - service: ai-labeling
+          - service: ai-awarding
+          
+  template:
+    metadata:
+      name: "moongcheap-{{ .service }}-develop"
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-succeeded.discord: ""
+        notifications.argoproj.io/subscribe.on-sync-failed.discord: ""
+        notifications.argoproj.io/subscribe.on-health-degraded.discord: ""
+
+    spec:
+      project: moongcheap-services
+
+      sources:
+        - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+          targetRevision: develop
+          path: gitops/charts/moongcheap-service
+          helm:
+            releaseName: "{{ .service }}"
+            valueFiles:
+              - $values/gitops/values/base.yaml
+              - $values/gitops/values/env/develop.yaml
+              - $values/gitops/values/services/{{ .service }}.yaml
+              - $values/gitops/values/overrides/develop/{{ .service }}.yaml
+
+        - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+          targetRevision: develop
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: moongcheap-develop
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+          - CreateNamespace=true

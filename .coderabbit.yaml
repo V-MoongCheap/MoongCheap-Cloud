@@ -1,0 +1,217 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+
+language: "ko-KR"
+
+reviews:
+  profile: "chill"
+
+  high_level_summary: true
+  in_progress_fortune: false
+  poem: false
+
+  # CodeRabbit은 보조 리뷰어로 사용하고,
+  # 최종 승인 및 Merge 여부는 팀원이 판단한다.
+  request_changes_workflow: false
+
+  auto_review:
+    enabled: true
+    drafts: false
+
+    # develop 또는 main을 대상으로 하는 PR만 자동 리뷰
+    base_branches:
+      - "develop"
+      - "main"
+
+  # 리뷰할 필요가 없는 생성 파일 및 바이너리 제외
+  path_filters:
+    - "!**/.terraform/**"
+    - "!**/*.tfstate"
+    - "!**/*.tfstate.*"
+    - "!**/.DS_Store"
+    - "!**/*.png"
+    - "!**/*.jpg"
+    - "!**/*.jpeg"
+
+  path_instructions:
+    # =========================================================
+    # 프로젝트 전체 공통 리뷰 기준
+    # =========================================================
+    - path: "**/*"
+      instructions: |
+        이 Repository는 MoongCheap 프로젝트의 Cloud Infrastructure Repository다.
+
+        코드 및 설정을 리뷰할 때 docs/ 디렉토리의 문서를
+        프로젝트 설계, 아키텍처, 컨벤션 및 의사결정의 최우선 기준으로 사용한다.
+
+        일반적인 Best Practice만을 근거로 프로젝트의 의도적인 설계를
+        잘못된 구성이라고 판단하지 않는다.
+
+        일반적인 Best Practice와 docs/의 프로젝트 설계가 다를 경우
+        docs/에 명시된 프로젝트의 설계 의도를 우선한다.
+
+        변경된 코드가 docs/의 설계, 아키텍처 또는 컨벤션과 충돌하는 경우
+        어떤 문서의 어떤 설계와 충돌하는지 구체적으로 지적한다.
+
+        docs/ 문서 사이에 서로 충돌하는 내용이 있거나,
+        문서만으로 의도를 명확하게 판단할 수 없는 경우
+        임의로 결론을 내리지 말고 확인이 필요하다고 지적한다.
+
+        기존에 구현되어 있는 리소스의 네이밍은
+        네이밍 규약 변경만을 이유로 불필요하게 변경하도록 권고하지 않는다.
+
+        리뷰 코멘트는 한국어로 작성한다.
+
+    # =========================================================
+    # Terraform
+    # =========================================================
+    - path: "terraform/**"
+      instructions: |
+        MoongCheap AWS Infrastructure를 관리하는 Terraform 코드다.
+
+        반드시 docs/에 정의된 다음 내용을 우선적으로 참고한다.
+
+        - 클라우드 인프라 아키텍처
+        - Terraform 네이밍 규약
+        - 환경별 구성
+        - 비용 관리 정책
+        - 네트워크 설계
+        - AWS 리소스 구성 의도
+
+        다음 사항을 중점적으로 검토한다.
+
+        - 기존 리소스의 불필요한 삭제 또는 재생성 가능성을 확인한다.
+        - 기존 리소스를 단순 네이밍 변경 목적으로 수정하지 않았는지 확인한다.
+        - 신규 리소스가 docs/의 네이밍 규약을 따르는지 확인한다.
+        - develop/prod 환경 설정이 서로 섞이지 않았는지 확인한다.
+        - Terraform State에 영향을 줄 수 있는 변경을 확인한다.
+        - Security Group에 불필요한 외부 접근 허용이 있는지 확인한다.
+        - IAM Role/Policy에 불필요하게 과도한 권한이 있는지 확인한다.
+        - Password, Token, Access Key 등 Secret이 하드코딩되지 않았는지 확인한다.
+        - 비용을 크게 증가시킬 수 있는 리소스 추가 또는 사양 변경을 확인한다.
+        - 하드코딩할 필요가 없는 값이 variable 또는 local로 관리되는지 확인한다.
+        - 동일하거나 유사한 Terraform 정의가 불필요하게 중복되지 않았는지 확인한다.
+        - docs/에서 정의한 현재 아키텍처와 Terraform 구현이 일치하는지 확인한다.
+
+    # =========================================================
+    # Terraform - Develop
+    # =========================================================
+    - path: "terraform/envs/develop/**"
+      instructions: |
+        MoongCheap develop 환경의 Terraform 코드다.
+
+        docs/에 정의된 develop 환경 정책을 기준으로 검토한다.
+
+        - prod 환경의 리소스 정보가 잘못 포함되지 않았는지 확인한다.
+        - prod ARN, Resource ID, Subnet ID 등이 혼입되지 않았는지 확인한다.
+        - 리소스 이름 및 태그가 develop 환경 기준과 일치하는지 확인한다.
+        - prod 환경 전용 설정이 실수로 적용되지 않았는지 확인한다.
+
+    # =========================================================
+    # Terraform - Prod
+    # =========================================================
+    - path: "terraform/envs/prod/**"
+      instructions: |
+        MoongCheap prod 환경의 Terraform 코드다.
+
+        docs/에 정의된 prod 환경 정책을 기준으로 검토한다.
+
+        - develop 환경의 리소스 정보가 잘못 포함되지 않았는지 확인한다.
+        - develop ARN, Resource ID, Subnet ID 등이 혼입되지 않았는지 확인한다.
+        - 리소스 이름 및 태그가 prod 환경 기준과 일치하는지 확인한다.
+        - 데이터 삭제 또는 리소스 교체 가능성이 있는 변경은 중요하게 지적한다.
+        - 운영 환경의 가용성에 영향을 줄 수 있는 변경을 중요하게 지적한다.
+
+    # =========================================================
+    # Kubernetes / Helm / ArgoCD
+    # =========================================================
+    - path: "k8s/**"
+      instructions: |
+        MoongCheap EKS 내부의 Kubernetes 관련 코드를 관리하는 디렉토리다.
+
+        Helm, ArgoCD 및 Kubernetes Manifest를 포함하여
+        k8s/ 내부의 모든 설정은 docs/의 EKS 및 배포 아키텍처를 기준으로 검토한다.
+
+        다음 사항을 중점적으로 검토한다.
+
+        - CPU/Memory requests 및 limits 설정을 확인한다.
+        - Secret 또는 Credential이 Manifest나 Values에 하드코딩되지 않았는지 확인한다.
+        - readinessProbe 및 livenessProbe 설정을 확인한다.
+        - Service Port와 Container Port의 불일치를 확인한다.
+        - selector와 label이 올바르게 연결되는지 확인한다.
+        - Deployment replica 변경이 의도된 것인지 확인한다.
+        - develop/prod 환경 설정이 서로 혼동되지 않았는지 확인한다.
+        - Namespace가 프로젝트 규약과 일치하는지 확인한다.
+        - ArgoCD Application의 targetRevision과 배포 대상 환경이 일치하는지 확인한다.
+        - Helm Values 경로 및 환경별 Values 선택이 올바른지 확인한다.
+        - 현재 docs/에서 사용하지 않기로 한 인프라 구성이 다시 추가되지 않았는지 확인한다.
+        - docs/에 정의된 현재 EKS 아키텍처와 실제 Manifest가 일치하는지 확인한다.
+
+    # =========================================================
+    # Observability
+    # =========================================================
+    - path: "observability/**"
+      instructions: |
+        MoongCheap 프로젝트의 Observability 구성을 관리하는 디렉토리다.
+
+        반드시 docs/의 모니터링, 로깅 및 운영 정책을 참고한다.
+
+        다음 사항을 중점적으로 검토한다.
+
+        - Prometheus Scrape Target과 Port 설정이 올바른지 확인한다.
+        - 과도한 Metric 수집으로 리소스 사용량이 증가할 가능성을 확인한다.
+        - 과도한 로그 수집으로 저장 공간 및 비용이 증가할 가능성을 확인한다.
+        - 민감정보가 로그 또는 설정 파일에 포함되지 않았는지 확인한다.
+        - CPU/Memory requests 및 limits 설정을 확인한다.
+        - Alert Rule 변경으로 불필요한 알림이 발생할 가능성을 확인한다.
+        - 모니터링 대상이 docs/에 정의된 현재 아키텍처와 일치하는지 확인한다.
+
+    # =========================================================
+    # Project Documentation
+    # =========================================================
+    - path: "docs/**"
+      instructions: |
+        docs/ 디렉토리는 MoongCheap 프로젝트의 인프라 설계,
+        아키텍처 의도, 컨벤션 및 운영 정책의 기준 문서를 관리한다.
+
+        docs/의 문서를 수정하는 경우 단순 문법이나 표현뿐 아니라
+        다른 프로젝트 문서 및 실제 코드와의 일관성을 검토한다.
+
+        다음 사항을 중점적으로 확인한다.
+
+        - 변경된 내용이 다른 docs/ 문서와 충돌하지 않는지 확인한다.
+        - 변경된 내용이 terraform/, k8s/, observability/의 현재 구현과 충돌하지 않는지 확인한다.
+        - 현재 아키텍처와 폐기된 이전 아키텍처가 혼재되어 있지 않은지 확인한다.
+        - develop/main Branch Convention과 충돌하는 내용이 없는지 확인한다.
+        - 네이밍 규약이 기존 구현을 불필요하게 변경하도록 요구하지 않는지 확인한다.
+        - 실제 Password, Token, Access Key 등의 Secret이 문서에 포함되지 않았는지 확인한다.
+        - 문서 간 내용이 충돌할 경우 임의로 어느 한쪽이 맞다고 판단하지 말고 충돌 사실을 지적한다.
+
+    # =========================================================
+    # Repository Root
+    # =========================================================
+    - path: "README.md"
+      instructions: |
+        Repository의 진입점 문서다.
+
+        docs/에 정의된 현재 프로젝트 구조 및 설계와 일치하는지 확인한다.
+
+        오래된 아키텍처, 디렉토리 구조, Branch Convention 또는
+        실행 방법이 남아 있지 않은지 확인한다.
+
+    - path: ".gitignore"
+      instructions: |
+        Infrastructure Repository의 .gitignore 파일이다.
+
+        Terraform State, Terraform 변수 파일, 환경변수 파일,
+        Credential, Private Key 등 민감하거나 Git으로 관리하면 안 되는
+        파일이 누락되지 않았는지 확인한다.
+
+        단, 프로젝트에서 의도적으로 Commit해야 하는 Example 파일까지
+        제외하도록 변경하지 않았는지 확인한다.
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "docs/**/*.md"
+      - "docs/**/*.txt"
+      - "README.md"

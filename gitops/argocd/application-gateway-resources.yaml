@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+ 
+metadata:
+  name: gateway-resources
+  namespace: argocd
+ 
+spec:
+  project: moongcheap-platform
+ 
+  source:
+    repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+    targetRevision: develop
+    path: gitops/platform/envoy-gateway/resources
+ 
+  # 이 디렉터리 안 리소스들은 GatewayClass(cluster-scoped)를 빼면 각자 metadata.namespace를
+  # 명시하고 있음(infra/monitoring/jenkins/argocd) — Application의 destination.namespace는
+  # 그 기본값일 뿐이고, 실제 배치는 매니페스트에 적힌 namespace를 따른다.
+  # (로컬 테스트에서 동일하게 검증됨: destination은 infra인데 HTTPRoute는 monitoring에 배치됨)
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: infra
+ 
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+ 
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+ 

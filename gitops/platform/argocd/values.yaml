@@ -1,0 +1,81 @@
+# 2026-09-26 실측(Prometheus 3일 max/p95) 기준 — request≈p95 올림, limit≈max×1.5~2. system 노드 메모리 고갈(NotReady) 재발 방지
+# ⚠️ ArgoCD는 자기 자신을 GitOps로 관리하지 않는다(helm 수동 설치) — 이 파일 변경은 helm upgrade로 반영.
+controller:
+  nodeSelector:
+    workload: system
+  resources:
+    requests:
+      memory: 512Mi   # application-controller 실측 max 676 / p95 498
+    limits:
+      memory: 1Gi
+
+server:
+  nodeSelector:
+    workload: system
+  insecure: true
+
+repoServer:
+  nodeSelector:
+    workload: system
+  resources:
+    requests:
+      memory: 128Mi   # 실측 max 119 / p95 104
+    limits:
+      memory: 256Mi
+
+applicationSet:
+  nodeSelector:
+    workload: system
+
+redis:
+  nodeSelector:
+    workload: system
+
+dex:
+  nodeSelector:
+    workload: system
+
+notifications:
+  nodeSelector:
+    workload: system
+  notifiers:
+    service.webhook.discord: |
+      url: $discord-webhook-url
+      headers:
+      - name: Content-Type
+        value: application/json
+  templates:
+    template.app-sync-succeeded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "✅ **[{{.app.metadata.name}}]** 배포 성공\n환경: `{{.app.spec.destination.namespace}}`"}
+    template.app-sync-failed: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "❌ **[{{.app.metadata.name}}]** 배포 실패\n환경: `{{.app.spec.destination.namespace}}`\n자세한 내용은 ArgoCD에서 확인해주세요."}
+    template.app-health-degraded: |
+      webhook:
+        discord:
+          method: POST
+          body: |
+            {"content": "⚠️ **[{{.app.metadata.name}}]** Health Degraded 감지\n환경: `{{.app.spec.destination.namespace}}`"}
+  triggers:
+    trigger.on-sync-succeeded: |
+      - description: Application syncing has succeeded
+        send:
+        - app-sync-succeeded
+        when: app.status.operationState.phase in ['Succeeded']
+    trigger.on-sync-failed: |
+      - description: Application syncing has failed
+        send:
+        - app-sync-failed
+        when: app.status.operationState.phase in ['Error', 'Failed']
+    trigger.on-health-degraded: |
+      - description: Application has degraded
+        send:
+        - app-health-degraded
+        when: app.status.health.status == 'Degraded' 

@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+
+metadata:
+  name: moongcheap-platform
+  namespace: argocd
+
+spec:
+  goTemplate: true
+  goTemplateOptions:
+    - missingkey=error
+
+  generators:
+    - git:
+        repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+        revision: develop
+        files:
+          - path: gitops/platform/**/config.yaml
+
+
+  template:
+    metadata:
+      name: "{{ .name }}"
+
+    spec:
+      project: moongcheap-platform
+
+      sources:
+        - repoURL: "{{ .helm.repoURL }}"
+          chart: "{{ .helm.chart }}"
+          targetRevision: "{{ .helm.version }}"
+          helm:
+            releaseName: "{{ .name }}"
+            valueFiles:
+              - "$values/{{ .path.path }}/values.yaml"
+
+        - repoURL: https://github.com/V-MoongCheap/MoongCheap-Cloud.git
+          targetRevision: develop
+          ref: values
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{ .namespace }}"
+      
+      {{- if (dig "ignoreReplicas" false .) }}
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+      {{- end }}
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true 
+          - RespectIgnoreDifferences=true
