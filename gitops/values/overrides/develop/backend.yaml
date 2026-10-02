@@ -1,5 +1,5 @@
 image:
-  tag: "develop-88b9fbe"
+  tag: "develop-5d7fb23"
 autoscaling:
   enabled: false # KEDA가 자체 HPA를 생성하므로 기존 plain HPA는 끈다
 metrics:
