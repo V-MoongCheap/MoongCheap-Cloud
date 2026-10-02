@@ -47,6 +47,8 @@ cronjob:
     - --price-cap-basis
     - UNIT_PRICE
 
+    - --send
+
   config:
     BACKEND_BASE_URL: "http://backend"
 
