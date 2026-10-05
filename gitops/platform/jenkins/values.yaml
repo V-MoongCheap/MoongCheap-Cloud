@@ -145,6 +145,20 @@ controller:
                         ttyEnabled: true
                         resourceRequestCpu: "500m"
                         resourceRequestMemory: "1Gi"
+                      # AI Jenkinsfile Dependency Scan·Secret Scan 단계가 container('trivy')·container('gitleaks')를 쓴다.
+                      # 10/1까지는 Git 밖(Jenkins UI)에서 추가돼 있다가 재시작 때 JCasC로 덮여 사라졌다 (2026-10-05).
+                      - name: "trivy"
+                        image: "aquasec/trivy:0.74.0"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "100m"
+                        resourceRequestMemory: "256Mi"
+                      - name: "gitleaks"
+                        image: "zricethezav/gitleaks:v8.21.2"
+                        command: "cat"
+                        ttyEnabled: true
+                        resourceRequestCpu: "100m"
+                        resourceRequestMemory: "128Mi"
 
   # ingress:
   #   enabled: true
